@@ -1,38 +1,158 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { db } from "./db";
+import {
+  userStats, tasks, shopItems, inventory, scheduleItems,
+  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem,
+  type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertUserStats
+} from "@shared/schema";
+import { eq, and, desc } from "drizzle-orm";
+import { authStorage } from "./replit_integrations/auth/storage";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  // User Stats
+  getUserStats(userId: string): Promise<UserStats | undefined>;
+  createUserStats(userId: string): Promise<UserStats>;
+  updateUserStats(userId: string, updates: Partial<UserStats>): Promise<UserStats>;
+  
+  // Tasks
+  getTasks(userId: string): Promise<Task[]>;
+  getTask(id: number): Promise<Task | undefined>;
+  createTask(task: InsertTask): Promise<Task>;
+  updateTask(id: number, updates: Partial<Task>): Promise<Task>;
+  deleteTask(id: number): Promise<void>;
+  
+  // Shop
+  getShopItems(userId: string): Promise<ShopItem[]>;
+  getShopItem(id: number): Promise<ShopItem | undefined>;
+  createShopItem(item: InsertShopItem): Promise<ShopItem>;
+  
+  // Inventory
+  getInventory(userId: string): Promise<{inventoryId: number, item: ShopItem, acquiredAt: Date}[]>;
+  addToInventory(userId: string, itemId: number): Promise<InventoryItem>;
+  
+  // Schedule
+  getScheduleItems(userId: string): Promise<ScheduleItem[]>;
+  getScheduleItem(id: number): Promise<ScheduleItem | undefined>;
+  createScheduleItem(item: InsertScheduleItem): Promise<ScheduleItem>;
+  updateScheduleItem(id: number, updates: Partial<ScheduleItem>): Promise<ScheduleItem>;
+  deleteScheduleItem(id: number): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  async getUserStats(userId: string): Promise<UserStats | undefined> {
+    const [stats] = await db.select().from(userStats).where(eq(userStats.userId, userId));
+    return stats;
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async createUserStats(userId: string): Promise<UserStats> {
+    const [stats] = await db.insert(userStats).values({ userId }).returning();
+    return stats;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async updateUserStats(userId: string, updates: Partial<UserStats>): Promise<UserStats> {
+    const [stats] = await db.update(userStats)
+      .set(updates)
+      .where(eq(userStats.userId, userId))
+      .returning();
+    return stats;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async getTasks(userId: string): Promise<Task[]> {
+    return await db.select().from(tasks)
+      .where(eq(tasks.userId, userId))
+      .orderBy(desc(tasks.createdAt));
+  }
+
+  async getTask(id: number): Promise<Task | undefined> {
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+    return task;
+  }
+
+  async createTask(task: InsertTask): Promise<Task> {
+    const [newTask] = await db.insert(tasks).values(task).returning();
+    return newTask;
+  }
+
+  async updateTask(id: number, updates: Partial<Task>): Promise<Task> {
+    const [updated] = await db.update(tasks)
+      .set(updates)
+      .where(eq(tasks.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTask(id: number): Promise<void> {
+    await db.delete(tasks).where(eq(tasks.id, id));
+  }
+
+  async getShopItems(userId: string): Promise<ShopItem[]> {
+    // Get system items (userId is null) AND user custom items
+    return await db.select().from(shopItems)
+      .where(
+        sql`(${shopItems.userId} IS NULL OR ${shopItems.userId} = ${userId})`
+      );
+  }
+  
+  async getShopItem(id: number): Promise<ShopItem | undefined> {
+    const [item] = await db.select().from(shopItems).where(eq(shopItems.id, id));
+    return item;
+  }
+
+  async createShopItem(item: InsertShopItem): Promise<ShopItem> {
+    const [newItem] = await db.insert(shopItems).values(item).returning();
+    return newItem;
+  }
+
+  async getInventory(userId: string): Promise<{inventoryId: number, item: ShopItem, acquiredAt: Date}[]> {
+    const result = await db.select({
+      inventoryId: inventory.id,
+      item: shopItems,
+      acquiredAt: inventory.acquiredAt,
+    })
+    .from(inventory)
+    .innerJoin(shopItems, eq(inventory.itemId, shopItems.id))
+    .where(eq(inventory.userId, userId));
+    
+    return result;
+  }
+
+  async addToInventory(userId: string, itemId: number): Promise<InventoryItem> {
+    const [item] = await db.insert(inventory).values({ userId, itemId }).returning();
+    return item;
+  }
+
+  async getScheduleItems(userId: string): Promise<ScheduleItem[]> {
+    return await db.select().from(scheduleItems)
+      .where(eq(scheduleItems.userId, userId))
+      .orderBy(scheduleItems.startTime);
+  }
+
+  async getScheduleItem(id: number): Promise<ScheduleItem | undefined> {
+    const [item] = await db.select().from(scheduleItems).where(eq(scheduleItems.id, id));
+    return item;
+  }
+
+  async createScheduleItem(item: InsertScheduleItem): Promise<ScheduleItem> {
+    const [newItem] = await db.insert(scheduleItems).values(item).returning();
+    return newItem;
+  }
+
+  async updateScheduleItem(id: number, updates: Partial<ScheduleItem>): Promise<ScheduleItem> {
+    const [updated] = await db.update(scheduleItems)
+      .set(updates)
+      .where(eq(scheduleItems.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTask(id: number): Promise<void> {
+    await db.delete(scheduleItems).where(eq(scheduleItems.id, id));
+  }
+  
+  async deleteScheduleItem(id: number): Promise<void> {
+    await db.delete(scheduleItems).where(eq(scheduleItems.id, id));
   }
 }
 
-export const storage = new MemStorage();
+import { sql } from "drizzle-orm";
+
+export const storage = new DatabaseStorage();
