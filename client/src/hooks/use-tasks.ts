@@ -24,7 +24,10 @@ export function useCreateTask() {
         body: JSON.stringify(data),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to create task");
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to create task");
+      }
       return api.tasks.create.responses[201].parse(await res.json());
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.tasks.list.path] }),

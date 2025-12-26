@@ -24,7 +24,10 @@ export function useCreateScheduleItem() {
         body: JSON.stringify(data),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to create schedule item");
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to create schedule item");
+      }
       return api.schedule.create.responses[201].parse(await res.json());
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.schedule.list.path] }),

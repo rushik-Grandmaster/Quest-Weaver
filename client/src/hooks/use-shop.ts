@@ -36,7 +36,10 @@ export function useCreateShopItem() {
         body: JSON.stringify(data),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to create item");
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to create item");
+      }
       return api.shop.create.responses[201].parse(await res.json());
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.shop.list.path] }),

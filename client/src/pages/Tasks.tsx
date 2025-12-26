@@ -228,6 +228,28 @@ function CreateTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">XP Reward</label>
+              <Input 
+                type="number"
+                {...form.register("rewardXp", { valueAsNumber: true })} 
+                placeholder="10"
+              />
+              {form.formState.errors.rewardXp && <p className="text-xs text-destructive">{form.formState.errors.rewardXp.message}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Gold Reward</label>
+              <Input 
+                type="number"
+                {...form.register("rewardPoints", { valueAsNumber: true })} 
+                placeholder="5"
+              />
+              {form.formState.errors.rewardPoints && <p className="text-xs text-destructive">{form.formState.errors.rewardPoints.message}</p>}
+            </div>
+          </div>
+
           <Button type="submit" className="w-full" disabled={isPending}>
             {isPending ? "Creating..." : "Create Quest"}
           </Button>

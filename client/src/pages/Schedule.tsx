@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, Trash2, Clock } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Schedule() {
   const { data: items, isLoading } = useSchedule();
@@ -75,6 +76,7 @@ export default function Schedule() {
 
 function CreateScheduleDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { mutate: createItem, isPending } = useCreateScheduleItem();
+  const { toast } = useToast();
   const form = useForm<InsertScheduleItem>({
     resolver: zodResolver(insertScheduleItemSchema),
     defaultValues: {
@@ -93,8 +95,20 @@ function CreateScheduleDialog({ open, onOpenChange }: { open: boolean; onOpenCha
       endTime: new Date(data.endTime)
     }, {
       onSuccess: () => {
+        toast({
+          title: "Event Added!",
+          description: "Your event has been added to the schedule.",
+          variant: "default"
+        });
         onOpenChange(false);
         form.reset();
+      },
+      onError: (error: any) => {
+        toast({
+          title: "Failed to add event",
+          description: error.message || "Something went wrong",
+          variant: "destructive"
+        });
       }
     });
   };
@@ -127,8 +141,8 @@ function CreateScheduleDialog({ open, onOpenChange }: { open: boolean; onOpenCha
               <Input 
                 type="datetime-local" 
                 {...form.register("startTime", { valueAsDate: true })} 
-                // Default value handling for datetime-local is tricky in React, skipping complex logic for MVP
               />
+              {form.formState.errors.startTime && <p className="text-xs text-destructive">{form.formState.errors.startTime.message}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">End Time</label>
@@ -136,6 +150,7 @@ function CreateScheduleDialog({ open, onOpenChange }: { open: boolean; onOpenCha
                 type="datetime-local" 
                 {...form.register("endTime", { valueAsDate: true })} 
               />
+              {form.formState.errors.endTime && <p className="text-xs text-destructive">{form.formState.errors.endTime.message}</p>}
             </div>
           </div>
 
