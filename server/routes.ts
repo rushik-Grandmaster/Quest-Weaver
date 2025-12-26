@@ -39,17 +39,19 @@ export async function registerRoutes(
 
   app.post(api.tasks.create.path, requireAuth, async (req: any, res) => {
     try {
-      const input = api.tasks.create.input.parse({
-        ...req.body,
+      const parsed = api.tasks.create.input.parse(req.body);
+      const input = {
+        ...parsed,
         userId: req.user.claims.sub
-      });
-      const task = await storage.createTask(input);
+      };
+      const task = await storage.createTask(input as any);
       res.status(201).json(task);
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      throw err;
+      console.error("Task creation error:", err);
+      return res.status(400).json({ message: "Failed to create task" });
     }
   });
 
@@ -122,13 +124,17 @@ export async function registerRoutes(
 
   app.post(api.shop.create.path, requireAuth, async (req: any, res) => {
     try {
-      const input = api.shop.create.input.parse({
-        ...req.body,
+      const parsed = api.shop.create.input.parse(req.body);
+      const input = {
+        ...parsed,
         userId: req.user.claims.sub
-      });
-      const item = await storage.createShopItem(input);
+      };
+      const item = await storage.createShopItem(input as any);
       res.status(201).json(item);
     } catch (err) {
+       if (err instanceof z.ZodError) {
+         return res.status(400).json({ message: err.errors[0].message });
+       }
        return res.status(400).json({ message: "Invalid input" });
     }
   });
@@ -168,14 +174,18 @@ export async function registerRoutes(
 
   app.post(api.schedule.create.path, requireAuth, async (req: any, res) => {
     try {
-      const input = api.schedule.create.input.parse({
-        ...req.body,
+      const parsed = api.schedule.create.input.parse(req.body);
+      const input = {
+        ...parsed,
         userId: req.user.claims.sub
-      });
-      const item = await storage.createScheduleItem(input);
+      };
+      const item = await storage.createScheduleItem(input as any);
       res.status(201).json(item);
     } catch (err) {
-      res.status(400).json({ message: "Invalid input" });
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      return res.status(400).json({ message: "Invalid input" });
     }
   });
 

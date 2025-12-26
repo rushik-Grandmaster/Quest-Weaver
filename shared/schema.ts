@@ -99,10 +99,18 @@ export const scheduleItemsRelations = relations(scheduleItems, ({ one }) => ({
 
 // === ZOD SCHEMAS ===
 export const insertUserStatsSchema = createInsertSchema(userStats);
-export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true, userId: true });
-export const insertShopItemSchema = createInsertSchema(shopItems).omit({ id: true, userId: true });
-export const insertInventorySchema = createInsertSchema(inventory).omit({ id: true, acquiredAt: true, userId: true });
-export const insertScheduleItemSchema = createInsertSchema(scheduleItems).omit({ id: true, userId: true });
+export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true }).extend({
+  userId: z.string().optional() // Made optional since server will provide it
+});
+export const insertShopItemSchema = createInsertSchema(shopItems).omit({ id: true }).extend({
+  userId: z.string().optional() // Made optional since server will provide it
+});
+export const insertInventorySchema = createInsertSchema(inventory).omit({ id: true, acquiredAt: true }).extend({
+  userId: z.string().optional()
+});
+export const insertScheduleItemSchema = createInsertSchema(scheduleItems).omit({ id: true }).extend({
+  userId: z.string().optional() // Made optional since server will provide it
+});
 
 // === TYPES ===
 export type UserStats = typeof userStats.$inferSelect;
