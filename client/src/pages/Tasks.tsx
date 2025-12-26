@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, Filter, Trash2, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Tasks() {
   const { data: tasks, isLoading } = useTasks();
@@ -134,6 +135,7 @@ export default function Tasks() {
 
 function CreateTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { mutate: createTask, isPending } = useCreateTask();
+  const { toast } = useToast();
   const form = useForm<InsertTask>({
     resolver: zodResolver(insertTaskSchema),
     defaultValues: {
@@ -149,8 +151,20 @@ function CreateTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   const onSubmit = (data: InsertTask) => {
     createTask(data, {
       onSuccess: () => {
+        toast({
+          title: "Quest Created!",
+          description: "Your new quest has been added to the board.",
+          variant: "default"
+        });
         onOpenChange(false);
         form.reset();
+      },
+      onError: (error: any) => {
+        toast({
+          title: "Failed to create quest",
+          description: error.message || "Something went wrong",
+          variant: "destructive"
+        });
       }
     });
   };
