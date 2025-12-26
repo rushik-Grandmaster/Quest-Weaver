@@ -45,6 +45,8 @@ export const inventory = pgTable("inventory", {
   userId: varchar("user_id").notNull().references(() => users.id),
   itemId: integer("item_id").notNull().references(() => shopItems.id),
   acquiredAt: timestamp("acquired_at").defaultNow().notNull(),
+  isUsed: boolean("is_used").default(false).notNull(),
+  usedAt: timestamp("used_at"),
 });
 
 export const scheduleItems = pgTable("schedule_items", {
@@ -109,7 +111,9 @@ export const insertInventorySchema = createInsertSchema(inventory).omit({ id: tr
   userId: z.string().optional()
 });
 export const insertScheduleItemSchema = createInsertSchema(scheduleItems).omit({ id: true }).extend({
-  userId: z.string().optional() // Made optional since server will provide it
+  userId: z.string().optional(), // Made optional since server will provide it
+  startTime: z.coerce.date(), // Coerce string from datetime-local to Date
+  endTime: z.coerce.date() // Coerce string from datetime-local to Date
 });
 
 // === TYPES ===
