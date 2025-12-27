@@ -26,8 +26,10 @@ export interface IStorage {
   createShopItem(item: InsertShopItem): Promise<ShopItem>;
   
   // Inventory
-  getInventory(userId: string): Promise<{inventoryId: number, item: ShopItem, acquiredAt: Date}[]>;
+  getInventory(userId: string): Promise<{inventoryId: number, item: ShopItem, acquiredAt: Date, isUsed: boolean, usedAt: Date | null}[]>;
   addToInventory(userId: string, itemId: number): Promise<InventoryItem>;
+  useInventoryItem(id: number): Promise<InventoryItem>;
+  deleteInventoryItem(id: number): Promise<void>;
   
   // Schedule
   getScheduleItems(userId: string): Promise<ScheduleItem[]>;
@@ -102,11 +104,13 @@ export class DatabaseStorage implements IStorage {
     return newItem;
   }
 
-  async getInventory(userId: string): Promise<{inventoryId: number, item: ShopItem, acquiredAt: Date}[]> {
+  async getInventory(userId: string): Promise<{inventoryId: number, item: ShopItem, acquiredAt: Date, isUsed: boolean, usedAt: Date | null}[]> {
     const result = await db.select({
       inventoryId: inventory.id,
       item: shopItems,
       acquiredAt: inventory.acquiredAt,
+      isUsed: inventory.isUsed,
+      usedAt: inventory.usedAt,
     })
     .from(inventory)
     .innerJoin(shopItems, eq(inventory.itemId, shopItems.id))
@@ -118,6 +122,18 @@ export class DatabaseStorage implements IStorage {
   async addToInventory(userId: string, itemId: number): Promise<InventoryItem> {
     const [item] = await db.insert(inventory).values({ userId, itemId }).returning();
     return item;
+  }
+
+  async useInventoryItem(id: number): Promise<InventoryItem> {
+    const [item] = await db.update(inventory)
+      .set({ isUsed: true, usedAt: new Date() })
+      .where(eq(inventory.id, id))
+      .returning();
+    return item;
+  }
+
+  async deleteInventoryItem(id: number): Promise<void> {
+    await db.delete(inventory).where(eq(inventory.id, id));
   }
 
   async getScheduleItems(userId: string): Promise<ScheduleItem[]> {

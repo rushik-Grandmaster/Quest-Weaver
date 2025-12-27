@@ -162,8 +162,29 @@ export async function registerRoutes(
   // Inventory
   app.get(api.inventory.list.path, requireAuth, async (req: any, res) => {
     const inventory = await storage.getInventory(req.user.claims.sub);
-    // Transform to match API contract if needed, but storage already returns joined data
     res.json(inventory); 
+  });
+
+  app.post(api.inventory.use.path, requireAuth, async (req: any, res) => {
+    const inventoryId = Number(req.params.id);
+    const inventory = await storage.getInventory(req.user.claims.sub);
+    const item = inventory.find(i => i.inventoryId === inventoryId);
+    
+    if (!item) return res.status(404).json({ message: "Item not found" });
+    
+    const result = await storage.useInventoryItem(inventoryId);
+    res.json(result);
+  });
+
+  app.delete(api.inventory.delete.path, requireAuth, async (req: any, res) => {
+    const inventoryId = Number(req.params.id);
+    const inventory = await storage.getInventory(req.user.claims.sub);
+    const item = inventory.find(i => i.inventoryId === inventoryId);
+    
+    if (!item) return res.status(404).json({ message: "Item not found" });
+    
+    await storage.deleteInventoryItem(inventoryId);
+    res.status(204).end();
   });
 
   // Schedule

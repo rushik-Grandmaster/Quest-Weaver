@@ -123,7 +123,27 @@ export const api = {
           inventoryId: z.number(),
           item: z.custom<typeof shopItems.$inferSelect>(),
           acquiredAt: z.string(),
+          isUsed: z.boolean(),
+          usedAt: z.string().nullable(),
         })),
+        401: errorSchemas.unauthorized,
+      },
+    },
+    use: {
+      method: 'POST' as const,
+      path: '/api/inventory/:id/use',
+      responses: {
+        200: z.custom<typeof inventory.$inferSelect>(),
+        404: errorSchemas.notFound,
+        401: errorSchemas.unauthorized,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/inventory/:id',
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
         401: errorSchemas.unauthorized,
       },
     }

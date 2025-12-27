@@ -66,3 +66,34 @@ export function useBuyItem() {
     },
   });
 }
+
+export function useUseInventoryItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const url = buildUrl(api.inventory.use.path, { id });
+      const res = await fetch(url, { method: "POST", credentials: "include" });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to use item");
+      }
+      return api.inventory.use.responses[200].parse(await res.json());
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.inventory.list.path] }),
+  });
+}
+
+export function useDeleteInventoryItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const url = buildUrl(api.inventory.delete.path, { id });
+      const res = await fetch(url, { method: "DELETE", credentials: "include" });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to delete item");
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.inventory.list.path] }),
+  });
+}
