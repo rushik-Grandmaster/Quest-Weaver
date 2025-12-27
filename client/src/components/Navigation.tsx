@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { LayoutDashboard, CheckSquare, ShoppingBag, Calendar, LogOut, Backpack } from "lucide-react";
+import { LayoutDashboard, CheckSquare, ShoppingBag, Calendar, LogOut, Backpack, BookMarked } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function Navigation() {
@@ -13,6 +13,7 @@ export function Navigation() {
     { href: "/schedule", label: "Planner", icon: Calendar },
     { href: "/shop", label: "Shop", icon: ShoppingBag },
     { href: "/inventory", label: "Inventory", icon: Backpack },
+    { href: "/diary", label: "Diary", icon: BookMarked },
   ];
 
   return (

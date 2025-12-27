@@ -227,21 +227,49 @@ export async function registerRoutes(
     await storage.deleteScheduleItem(item.id);
     res.status(204).end();
   });
-  
-  // Seed system shop items if empty
-  const systemItems = await storage.getShopItems("system"); // Hacky check, but we filter by null in storage
-  // Actually, let's just seed if table is empty
-  // Better: Seed function called separately
-  await seedDatabase();
+
+  // Diary
+  app.get(api.diary.list.path, requireAuth, async (req: any, res) => {
+    const entries = await storage.getDiaryEntries(req.user.claims.sub);
+    res.json(entries);
+  });
+
+  app.post(api.diary.create.path, requireAuth, async (req: any, res) => {
+    try {
+      const parsed = api.diary.create.input.parse(req.body);
+      const input = {
+        ...parsed,
+        userId: req.user.claims.sub
+      };
+      const entry = await storage.createDiaryEntry(input as any);
+      res.status(201).json(entry);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      return res.status(400).json({ message: "Failed to create entry" });
+    }
+  });
+
+  app.patch(api.diary.update.path, requireAuth, async (req: any, res) => {
+    const entry = await storage.getDiaryEntry(Number(req.params.id));
+    if (!entry || entry.userId !== req.user.claims.sub) {
+      return res.status(404).json({ message: "Entry not found" });
+    }
+    const updated = await storage.updateDiaryEntry(entry.id, req.body);
+    res.json(updated);
+  });
+
+  app.delete(api.diary.delete.path, requireAuth, async (req: any, res) => {
+    const entry = await storage.getDiaryEntry(Number(req.params.id));
+    if (!entry || entry.userId !== req.user.claims.sub) {
+      return res.status(404).json({ message: "Entry not found" });
+    }
+    await storage.deleteDiaryEntry(entry.id);
+    res.status(204).end();
+  });
 
   return httpServer;
 }
 
-async function seedDatabase() {
-   // Check if we have any system items
-   // This is a bit tricky since we don't have a clean way to check "all system items" 
-   // without a user context in the current storage API. 
-   // But we can just use SQL directly or add a method.
-   // For now, let's skip auto-seeding complicated logic and rely on the user to add items or add a simple check later.
-   // Actually, let's add a few default items using a dummy user ID check or just always try to insert if not exists
-}
+async function seedDatabase() {}

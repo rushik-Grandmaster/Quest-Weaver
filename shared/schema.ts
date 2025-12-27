@@ -59,6 +59,15 @@ export const scheduleItems = pgTable("schedule_items", {
   isCompleted: boolean("is_completed").default(false).notNull(),
 });
 
+export const diaryEntries = pgTable("diary_entries", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  mood: text("mood").default("neutral"), // 'happy', 'sad', 'angry', 'neutral', 'excited'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // === RELATIONS ===
 export const userStatsRelations = relations(userStats, ({ one }) => ({
   user: one(users, {
@@ -99,6 +108,13 @@ export const scheduleItemsRelations = relations(scheduleItems, ({ one }) => ({
   }),
 }));
 
+export const diaryEntriesRelations = relations(diaryEntries, ({ one }) => ({
+  user: one(users, {
+    fields: [diaryEntries.userId],
+    references: [users.id],
+  }),
+}));
+
 // === ZOD SCHEMAS ===
 export const insertUserStatsSchema = createInsertSchema(userStats);
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true }).extend({
@@ -116,13 +132,20 @@ export const insertScheduleItemSchema = createInsertSchema(scheduleItems).omit({
   endTime: z.coerce.date() // Coerce string from datetime-local to Date
 });
 
+export const insertDiaryEntrySchema = createInsertSchema(diaryEntries).omit({ id: true, createdAt: true, updatedAt: true }).extend({
+  userId: z.string().optional(), // Made optional since server will provide it
+  mood: z.enum(['happy', 'sad', 'angry', 'neutral', 'excited']).default('neutral'),
+});
+
 // === TYPES ===
 export type UserStats = typeof userStats.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type ShopItem = typeof shopItems.$inferSelect;
 export type InventoryItem = typeof inventory.$inferSelect;
 export type ScheduleItem = typeof scheduleItems.$inferSelect;
+export type DiaryEntry = typeof diaryEntries.$inferSelect;
 
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type InsertShopItem = z.infer<typeof insertShopItemSchema>;
 export type InsertScheduleItem = z.infer<typeof insertScheduleItemSchema>;
+export type InsertDiaryEntry = z.infer<typeof insertDiaryEntrySchema>;

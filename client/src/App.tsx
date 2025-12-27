@@ -14,6 +14,7 @@ import Shop from "@/pages/Shop";
 import Inventory from "@/pages/Inventory";
 import UsedItems from "@/pages/UsedItems";
 import Schedule from "@/pages/Schedule";
+import Diary from "@/pages/Diary";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 
@@ -61,6 +62,7 @@ function Router() {
         <Route path="/inventory" component={Inventory} />
         <Route path="/used-items" component={UsedItems} />
         <Route path="/schedule" component={Schedule} />
+        <Route path="/diary" component={Diary} />
         <Route component={NotFound} />
       </Switch>
     </PrivateLayout>

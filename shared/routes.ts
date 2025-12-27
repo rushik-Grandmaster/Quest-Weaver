@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { insertTaskSchema, insertShopItemSchema, insertScheduleItemSchema, tasks, shopItems, inventory, scheduleItems, userStats } from './schema';
+import { insertTaskSchema, insertShopItemSchema, insertScheduleItemSchema, insertDiaryEntrySchema, tasks, shopItems, inventory, scheduleItems, diaryEntries, userStats } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -180,6 +180,45 @@ export const api = {
     delete: {
       method: 'DELETE' as const,
       path: '/api/schedule/:id',
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+        401: errorSchemas.unauthorized,
+      },
+    }
+  },
+  diary: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/diary',
+      responses: {
+        200: z.array(z.custom<typeof diaryEntries.$inferSelect>()),
+        401: errorSchemas.unauthorized,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/diary',
+      input: insertDiaryEntrySchema,
+      responses: {
+        201: z.custom<typeof diaryEntries.$inferSelect>(),
+        400: errorSchemas.validation,
+        401: errorSchemas.unauthorized,
+      },
+    },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/diary/:id',
+      input: insertDiaryEntrySchema.partial(),
+      responses: {
+        200: z.custom<typeof diaryEntries.$inferSelect>(),
+        404: errorSchemas.notFound,
+        401: errorSchemas.unauthorized,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/diary/:id',
       responses: {
         204: z.void(),
         404: errorSchemas.notFound,

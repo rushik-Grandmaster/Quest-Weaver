@@ -1,8 +1,8 @@
 import { db } from "./db";
 import {
-  userStats, tasks, shopItems, inventory, scheduleItems,
-  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem,
-  type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertUserStats
+  userStats, tasks, shopItems, inventory, scheduleItems, diaryEntries,
+  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry,
+  type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertUserStats
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
@@ -37,6 +37,13 @@ export interface IStorage {
   createScheduleItem(item: InsertScheduleItem): Promise<ScheduleItem>;
   updateScheduleItem(id: number, updates: Partial<ScheduleItem>): Promise<ScheduleItem>;
   deleteScheduleItem(id: number): Promise<void>;
+
+  // Diary
+  getDiaryEntries(userId: string): Promise<DiaryEntry[]>;
+  getDiaryEntry(id: number): Promise<DiaryEntry | undefined>;
+  createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry>;
+  updateDiaryEntry(id: number, updates: Partial<DiaryEntry>): Promise<DiaryEntry>;
+  deleteDiaryEntry(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -166,6 +173,34 @@ export class DatabaseStorage implements IStorage {
   
   async deleteScheduleItem(id: number): Promise<void> {
     await db.delete(scheduleItems).where(eq(scheduleItems.id, id));
+  }
+
+  async getDiaryEntries(userId: string): Promise<DiaryEntry[]> {
+    return await db.select().from(diaryEntries)
+      .where(eq(diaryEntries.userId, userId))
+      .orderBy(desc(diaryEntries.createdAt));
+  }
+
+  async getDiaryEntry(id: number): Promise<DiaryEntry | undefined> {
+    const [entry] = await db.select().from(diaryEntries).where(eq(diaryEntries.id, id));
+    return entry;
+  }
+
+  async createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry> {
+    const [newEntry] = await db.insert(diaryEntries).values(entry).returning();
+    return newEntry;
+  }
+
+  async updateDiaryEntry(id: number, updates: Partial<DiaryEntry>): Promise<DiaryEntry> {
+    const [updated] = await db.update(diaryEntries)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(diaryEntries.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDiaryEntry(id: number): Promise<void> {
+    await db.delete(diaryEntries).where(eq(diaryEntries.id, id));
   }
 }
 
