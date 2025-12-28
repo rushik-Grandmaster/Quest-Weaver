@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { Navigation } from "@/components/Navigation";
 import { Header } from "@/components/Header";
+import { WelcomeAnimation } from "@/components/WelcomeAnimation";
 import { Loader2 } from "lucide-react";
 
 import Home from "@/pages/Home";
@@ -73,6 +74,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <WelcomeAnimation />
         <Router />
         <Toaster />
       </TooltipProvider>
