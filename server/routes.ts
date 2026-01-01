@@ -291,18 +291,22 @@ export async function registerRoutes(
   app.post("/api/ai/tts", requireAuth, async (req: any, res) => {
     try {
       const { text } = req.body;
+      if (!text) return res.status(400).send("Text is required");
+      
       const mp3 = await openai.audio.speech.create({
         model: "tts-1",
         voice: "nova",
         input: text,
       });
+      
       const buffer = Buffer.from(await mp3.arrayBuffer());
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", buffer.length);
+      res.setHeader("Cache-Control", "no-cache");
       res.send(buffer);
     } catch (err) {
       console.error("TTS error:", err);
-      res.status(500).send("TTS failed");
+      res.status(500).send("TTS failed: " + (err instanceof Error ? err.message : String(err)));
     }
   });
 

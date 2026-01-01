@@ -76,27 +76,41 @@ export default function Luminous() {
 
   const speak = async (text: string) => {
     try {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel(); 
+      }
+      
       const response = await fetch("/api/ai/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
         credentials: "include",
       });
+      
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`TTS failed: ${errorText}`);
+        throw new Error(`TTS failed`);
       }
+      
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
-      await audio.play();
+      
+      // Auto-unlock audio for mobile and stricter browsers
+      audio.play().catch(e => {
+        console.error("Audio playback blocked, trying fallback:", e);
+        fallbackSpeak(text);
+      });
+
     } catch (err) {
       console.error("TTS Error:", err);
-      // Fallback to browser TTS if server TTS fails
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        const utterance = new SpeechSynthesisUtterance(text);
-        window.speechSynthesis.speak(utterance);
-      }
+      fallbackSpeak(text);
+    }
+  };
+
+  const fallbackSpeak = (text: string) => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.speak(utterance);
     }
   };
 
