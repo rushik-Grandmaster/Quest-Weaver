@@ -5,6 +5,15 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 
+import { registerChatRoutes } from "./replit_integrations/chat";
+import { registerImageRoutes } from "./replit_integrations/image";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -12,6 +21,10 @@ export async function registerRoutes(
   // Auth setup
   await setupAuth(app);
   registerAuthRoutes(app);
+  
+  // Register AI Integrations
+  registerChatRoutes(app);
+  registerImageRoutes(app);
 
   // Helper to get authenticated user ID
   const requireAuth = (req: any, res: any, next: any) => {
@@ -267,6 +280,78 @@ export async function registerRoutes(
     }
     await storage.deleteDiaryEntry(entry.id);
     res.status(204).end();
+  });
+
+  // Luminous AI
+  app.get(api.ai.history.path, requireAuth, async (req: any, res) => {
+    const history = await storage.getAiHistory(req.user.claims.sub);
+    res.json(history);
+  });
+
+  app.post(api.ai.chat.path, requireAuth, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const { message, history = [] } = req.body;
+
+    try {
+      // Save user message
+      await storage.saveAiMessage({
+        userId,
+        role: "user",
+        content: message,
+        type: "text"
+      });
+
+      // Simple keyword detection for image generation
+      if (message.toLowerCase().includes("generate image") || message.toLowerCase().includes("draw")) {
+        const response = await openai.images.generate({
+          model: "gpt-image-1",
+          prompt: message,
+          size: "512x512",
+        });
+
+        const imageUrl = `data:image/png;base64,${response.data[0].b64_json}`;
+        const aiMessage = {
+          userId,
+          role: "assistant",
+          content: "I've generated this image for you.",
+          type: "image",
+        };
+        
+        await storage.saveAiMessage({ ...aiMessage, content: imageUrl, type: "image_url" });
+        return res.json({ message: aiMessage.content, type: "image", data: imageUrl });
+      }
+
+      // Default Chat response
+      const chatHistory = history.map((m: any) => ({
+        role: m.role,
+        content: m.content
+      }));
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [
+          { role: "system", content: "You are Luminous, a helpful AI life coach and assistant for the LifeRPG app. You help users with productivity, calorie tracking, math, and personal growth. Be supportive and encouraging." },
+          ...chatHistory,
+          { role: "user", content: message }
+        ],
+        max_completion_tokens: 1024,
+      });
+
+      const aiContent = completion.choices[0].message.content || "I'm sorry, I couldn't process that.";
+      
+      // Save AI message
+      await storage.saveAiMessage({
+        userId,
+        role: "assistant",
+        content: aiContent,
+        type: "text"
+      });
+
+      res.json({ message: aiContent, type: "text" });
+    } catch (err) {
+      console.error("AI Chat error:", err);
+      res.status(500).json({ message: "Failed to get AI response" });
+    }
   });
 
   return httpServer;

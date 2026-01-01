@@ -115,6 +115,36 @@ export const diaryEntriesRelations = relations(diaryEntries, ({ one }) => ({
   }),
 }));
 
+export const conversations = pgTable("conversations", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const aiChatMessages = pgTable("ai_chat_messages", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  role: text("role").notNull(), // 'user', 'assistant'
+  content: text("content").notNull(),
+  type: text("type").default("text"), // 'text', 'image_url'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const aiChatMessagesRelations = relations(aiChatMessages, ({ one }) => ({
+  user: one(users, {
+    fields: [aiChatMessages.userId],
+    references: [users.id],
+  }),
+}));
+
 // === ZOD SCHEMAS ===
 export const insertUserStatsSchema = createInsertSchema(userStats);
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true }).extend({

@@ -225,6 +225,35 @@ export const api = {
         401: errorSchemas.unauthorized,
       },
     }
+  },
+  ai: {
+    chat: {
+      method: 'POST' as const,
+      path: '/api/ai/chat',
+      input: z.object({
+        message: z.string(),
+        history: z.array(z.object({
+          role: z.enum(['user', 'assistant']),
+          content: z.string()
+        })).optional()
+      }),
+      responses: {
+        200: z.object({
+          message: z.string(),
+          type: z.enum(['text', 'image']).default('text'),
+          data: z.string().optional()
+        }),
+        401: errorSchemas.unauthorized,
+      },
+    },
+    history: {
+      method: 'GET' as const,
+      path: '/api/ai/history',
+      responses: {
+        200: z.array(z.custom<typeof aiChatMessages.$inferSelect>()),
+        401: errorSchemas.unauthorized,
+      },
+    }
   }
 };
 

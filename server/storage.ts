@@ -44,6 +44,10 @@ export interface IStorage {
   createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry>;
   updateDiaryEntry(id: number, updates: Partial<DiaryEntry>): Promise<DiaryEntry>;
   deleteDiaryEntry(id: number): Promise<void>;
+
+  // AI Chat
+  getAiHistory(userId: string): Promise<any[]>;
+  saveAiMessage(message: any): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -201,6 +205,17 @@ export class DatabaseStorage implements IStorage {
 
   async deleteDiaryEntry(id: number): Promise<void> {
     await db.delete(diaryEntries).where(eq(diaryEntries.id, id));
+  }
+
+  async getAiHistory(userId: string): Promise<any[]> {
+    return await db.select().from(aiChatMessages)
+      .where(eq(aiChatMessages.userId, userId))
+      .orderBy(aiChatMessages.createdAt);
+  }
+
+  async saveAiMessage(message: any): Promise<any> {
+    const [saved] = await db.insert(aiChatMessages).values(message).returning();
+    return saved;
   }
 }
 

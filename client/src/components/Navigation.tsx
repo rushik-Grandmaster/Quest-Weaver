@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { LayoutDashboard, CheckSquare, ShoppingBag, Calendar, LogOut, Backpack, BookMarked } from "lucide-react";
+import { LayoutDashboard, CheckSquare, ShoppingBag, Calendar, LogOut, Backpack, BookMarked, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function Navigation() {
@@ -14,6 +14,7 @@ export function Navigation() {
     { href: "/shop", label: "Shop", icon: ShoppingBag },
     { href: "/inventory", label: "Inventory", icon: Backpack },
     { href: "/diary", label: "Diary", icon: BookMarked },
+    { href: "/luminous", label: "Luminous", icon: Sparkles },
   ];
 
   return (
