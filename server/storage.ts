@@ -1,10 +1,11 @@
 import { db } from "./db";
 import {
-  userStats, tasks, shopItems, inventory, scheduleItems, diaryEntries,
+  users, userStats, tasks, shopItems, inventory, scheduleItems, diaryEntries,
+  aiChatMessages, conversations, messages,
   type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry,
   type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertUserStats
 } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
 
 export interface IStorage {
@@ -207,10 +208,11 @@ export class DatabaseStorage implements IStorage {
     await db.delete(diaryEntries).where(eq(diaryEntries.id, id));
   }
 
+  // Luminous AI
   async getAiHistory(userId: string): Promise<any[]> {
     return await db.select().from(aiChatMessages)
       .where(eq(aiChatMessages.userId, userId))
-      .orderBy(aiChatMessages.createdAt);
+      .orderBy(desc(aiChatMessages.createdAt));
   }
 
   async saveAiMessage(message: any): Promise<any> {
@@ -218,7 +220,5 @@ export class DatabaseStorage implements IStorage {
     return saved;
   }
 }
-
-import { sql } from "drizzle-orm";
 
 export const storage = new DatabaseStorage();
