@@ -41,13 +41,12 @@ export default function Luminous() {
     if (typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window)) {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
+      recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = false;
 
       recognitionRef.current.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setInput(transcript);
-        setIsListening(false);
+        const transcript = event.results[event.results.length - 1][0].transcript;
+        handleSend(transcript);
       };
 
       recognitionRef.current.onerror = () => {
@@ -60,13 +59,14 @@ export default function Luminous() {
       };
 
       recognitionRef.current.onend = () => {
-        setIsListening(false);
+        if (isListening) recognitionRef.current.start();
       };
     }
-  }, []);
+  }, [isListening]);
 
   const toggleListening = () => {
     if (isListening) {
+      setIsListening(false);
       recognitionRef.current?.stop();
     } else {
       setIsListening(true);
@@ -74,10 +74,25 @@ export default function Luminous() {
     }
   };
 
-  const speak = (text: string) => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      window.speechSynthesis.speak(utterance);
+  const speak = async (text: string) => {
+    try {
+      const response = await fetch("/api/ai/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!response.ok) throw new Error("TTS failed");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.play();
+    } catch (err) {
+      console.error("TTS Error:", err);
+      // Fallback to browser TTS if server TTS fails
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        window.speechSynthesis.speak(utterance);
+      }
     }
   };
 

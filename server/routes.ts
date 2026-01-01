@@ -288,6 +288,23 @@ export async function registerRoutes(
     res.json(history);
   });
 
+  app.post("/api/ai/tts", requireAuth, async (req: any, res) => {
+    try {
+      const { text } = req.body;
+      const mp3 = await openai.audio.speech.create({
+        model: "tts-1",
+        voice: "alloy",
+        input: text,
+      });
+      const buffer = Buffer.from(await mp3.arrayBuffer());
+      res.set("Content-Type", "audio/mpeg");
+      res.send(buffer);
+    } catch (err) {
+      console.error("TTS error:", err);
+      res.status(500).send("TTS failed");
+    }
+  });
+
   app.post(api.ai.chat.path, requireAuth, async (req: any, res) => {
     const userId = req.user.claims.sub;
     const { message, history = [] } = req.body;
