@@ -345,13 +345,13 @@ export async function registerRoutes(
       }));
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-5",
+        model: "gpt-4o",
         messages: [
-          { role: "system", content: "You are Luminous, a helpful AI life coach and assistant for the LifeRPG app. You help users with productivity, calorie tracking, math, and personal growth. Be supportive and encouraging." },
+          { role: "system", content: "You are Luminous, an advanced AI life coach with GPT-4o intelligence. You provide high-level reasoning, complex problem solving, and deep insights into productivity and personal growth. Be supportive, brilliant, and concise." },
           ...chatHistory,
           { role: "user", content: message }
         ],
-        max_completion_tokens: 1024,
+        max_completion_tokens: 2048,
       });
 
       const aiContent = completion.choices[0].message.content || "I'm sorry, I couldn't process that.";
