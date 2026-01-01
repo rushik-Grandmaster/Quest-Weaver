@@ -297,7 +297,8 @@ export async function registerRoutes(
         input: text,
       });
       const buffer = Buffer.from(await mp3.arrayBuffer());
-      res.set("Content-Type", "audio/mpeg");
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Content-Length", buffer.length);
       res.send(buffer);
     } catch (err) {
       console.error("TTS error:", err);
@@ -347,7 +348,7 @@ export async function registerRoutes(
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: "You are Luminous, an advanced AI life coach with GPT-4o intelligence. You provide high-level reasoning, complex problem solving, and deep insights into productivity and personal growth. Be supportive, brilliant, and concise." },
+          { role: "system", content: "You are Luminous, an advanced AI life coach with GPT-4o intelligence. You provide high-level reasoning, complex problem solving, and deep insights into productivity and personal growth. Be supportive, brilliant, and concise. Your responses will be read aloud by a text-to-speech engine, so keep them natural and conversational." },
           ...chatHistory,
           { role: "user", content: message }
         ],

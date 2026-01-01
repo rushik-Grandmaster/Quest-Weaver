@@ -80,12 +80,16 @@ export default function Luminous() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
+        credentials: "include",
       });
-      if (!response.ok) throw new Error("TTS failed");
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`TTS failed: ${errorText}`);
+      }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
-      audio.play();
+      await audio.play();
     } catch (err) {
       console.error("TTS Error:", err);
       // Fallback to browser TTS if server TTS fails
