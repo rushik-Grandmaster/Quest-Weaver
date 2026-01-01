@@ -127,7 +127,7 @@ export default function Luminous() {
       };
       setMessages((prev) => [...prev, assistantMessage]);
       
-      if (data.type === "text") {
+      if (data.type === "text" && isListening) {
         speak(data.message);
       }
     } catch (err) {
