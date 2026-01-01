@@ -7,7 +7,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { Navigation } from "@/components/Navigation";
 import { Header } from "@/components/Header";
 import { WelcomeAnimation } from "@/components/WelcomeAnimation";
+import { LandingPage } from "@/components/LandingPage";
 import { Loader2 } from "lucide-react";
+import { useState } from "react";
 
 import Home from "@/pages/Home";
 import Tasks from "@/pages/Tasks";
@@ -41,12 +43,26 @@ function PrivateLayout({ children }: { children: React.ReactNode }) {
 
 function Router() {
   const { user, isLoading } = useAuth();
+  const [hasEntered, setHasEntered] = useState(() => {
+    return sessionStorage.getItem("has_entered_app") === "true";
+  });
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  if (!hasEntered) {
+    return (
+      <LandingPage 
+        onEnter={() => {
+          setHasEntered(true);
+          sessionStorage.setItem("has_entered_app", "true");
+        }} 
+      />
     );
   }
 
