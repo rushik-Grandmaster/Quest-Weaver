@@ -191,7 +191,7 @@ export default function Luminous() {
                 <Sparkles className="w-16 h-16 text-primary mx-auto mb-4 animate-pulse" />
               </motion.div>
               <h2 className="text-4xl md:text-6xl font-display font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-500">
-                Welcome {user?.firstName || "Traveler"}
+                Welcome Rushik Sama
               </h2>
               <p className="text-xl text-muted-foreground font-medium">Luminous is ready for you</p>
             </div>

@@ -19,6 +19,7 @@ import UsedItems from "@/pages/UsedItems";
 import Schedule from "@/pages/Schedule";
 import Diary from "@/pages/Diary";
 import Luminous from "@/pages/Luminous";
+import Streaks from "@/pages/Streaks";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 
@@ -82,6 +83,7 @@ function Router() {
         <Route path="/schedule" component={Schedule} />
         <Route path="/diary" component={Diary} />
         <Route path="/luminous" component={Luminous} />
+        <Route path="/streaks" component={Streaks} />
         <Route component={NotFound} />
       </Switch>
     </PrivateLayout>
