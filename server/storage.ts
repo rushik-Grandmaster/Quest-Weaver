@@ -101,67 +101,6 @@ export class DatabaseStorage implements IStorage {
     await db.delete(tasks).where(eq(tasks.id, id));
   }
 
-  async getShopItems(userId: string): Promise<ShopItem[]> {
-    // Get system items (userId is null) AND user custom items
-    return await db.select().from(shopItems)
-      .where(
-        sql`(${shopItems.userId} IS NULL OR ${shopItems.userId} = ${userId})`
-      );
-  }
-  
-  async getShopItem(id: number): Promise<ShopItem | undefined> {
-    const [item] = await db.select().from(shopItems).where(eq(shopItems.id, id));
-    return item;
-  }
-
-  async createShopItem(item: InsertShopItem): Promise<ShopItem> {
-    const [newItem] = await db.insert(shopItems).values(item).returning();
-    return newItem;
-  }
-
-  async getInventory(userId: string): Promise<{inventoryId: number, item: ShopItem, acquiredAt: Date, isUsed: boolean, usedAt: Date | null}[]> {
-    const result = await db.select({
-      inventoryId: inventory.id,
-      item: shopItems,
-      acquiredAt: inventory.acquiredAt,
-      isUsed: inventory.isUsed,
-      usedAt: inventory.usedAt,
-    })
-    .from(inventory)
-    .innerJoin(shopItems, eq(inventory.itemId, shopItems.id))
-    .where(eq(inventory.userId, userId));
-    
-    return result;
-  }
-
-  async addToInventory(userId: string, itemId: number): Promise<InventoryItem> {
-    const [item] = await db.insert(inventory).values({ userId, itemId }).returning();
-    return item;
-  }
-
-  async useInventoryItem(id: number): Promise<InventoryItem> {
-    const [item] = await db.update(inventory)
-      .set({ isUsed: true, usedAt: new Date() })
-      .where(eq(inventory.id, id))
-      .returning();
-    return item;
-  }
-
-  async deleteInventoryItem(id: number): Promise<void> {
-    await db.delete(inventory).where(eq(inventory.id, id));
-  }
-
-  async getScheduleItems(userId: string): Promise<ScheduleItem[]> {
-    return await db.select().from(scheduleItems)
-      .where(eq(scheduleItems.userId, userId))
-      .orderBy(scheduleItems.startTime);
-  }
-
-  async getScheduleItem(id: number): Promise<ScheduleItem | undefined> {
-    const [item] = await db.select().from(scheduleItems).where(eq(scheduleItems.id, id));
-    return item;
-  }
-
   async createScheduleItem(item: InsertScheduleItem): Promise<ScheduleItem> {
     const [newItem] = await db.insert(scheduleItems).values(item).returning();
     return newItem;
@@ -175,10 +114,6 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async deleteTask(id: number): Promise<void> {
-    await db.delete(scheduleItems).where(eq(scheduleItems.id, id));
-  }
-  
   async deleteScheduleItem(id: number): Promise<void> {
     await db.delete(scheduleItems).where(eq(scheduleItems.id, id));
   }

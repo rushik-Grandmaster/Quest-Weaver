@@ -173,7 +173,7 @@ export default function Luminous() {
   };
 
   return (
-    <div className="flex flex-col h-full max-w-4xl mx-auto p-4 md:p-8 relative">
+    <div className="flex flex-col h-full w-full max-w-none mx-auto p-2 md:p-4 relative">
       <AnimatePresence>
         {showWelcome && (
           <motion.div
@@ -212,7 +212,7 @@ export default function Luminous() {
         </p>
       </motion.div>
 
-      <div className="flex-1 bg-card rounded-3xl border border-border/50 overflow-hidden flex flex-col mb-4 shadow-xl shadow-primary/5">
+      <div className="flex-1 w-full bg-card rounded-3xl border border-border/50 overflow-hidden flex flex-col mb-2 shadow-xl shadow-primary/5">
         <ScrollArea className="flex-1 p-4" viewportRef={scrollRef}>
           <div className="space-y-6">
             <AnimatePresence initial={false}>
@@ -227,7 +227,7 @@ export default function Luminous() {
                   <div className={`p-2 rounded-xl ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
                     {m.role === "user" ? <User size={18} /> : <Bot size={18} />}
                   </div>
-                  <div className={`max-w-[80%] rounded-2xl p-4 relative group ${
+                  <div className={`max-w-[90%] rounded-2xl p-4 relative group ${
                     m.role === "user" 
                       ? "bg-primary/10 text-foreground" 
                       : "bg-secondary/50 text-foreground"
@@ -299,7 +299,7 @@ export default function Luminous() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={isListening ? "Listening..." : "Message Luminous..."}
-              className="rounded-xl"
+              className="rounded-xl h-12 text-lg"
               disabled={isLoading}
             />
             <Button 

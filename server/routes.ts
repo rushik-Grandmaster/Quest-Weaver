@@ -329,6 +329,7 @@ export async function registerRoutes(
           model: "gpt-image-1",
           prompt: message,
           size: "512x512",
+          response_format: "b64_json"
         });
 
         const imageUrl = `data:image/png;base64,${response.data[0].b64_json}`;
@@ -449,30 +450,31 @@ export async function registerRoutes(
       if (responseMessage.tool_calls) {
         const toolResults = [];
         for (const toolCall of responseMessage.tool_calls) {
-          const args = JSON.parse(toolCall.function.arguments);
+          const tc = toolCall as any;
+          const args = JSON.parse(tc.function.arguments);
           let result = "Success";
           
           try {
-            if (toolCall.function.name === "create_task") {
+            if (tc.function.name === "create_task") {
               await storage.createTask({ ...args, userId });
-            } else if (toolCall.function.name === "delete_task") {
+            } else if (tc.function.name === "delete_task") {
               await storage.deleteTask(args.taskId);
-            } else if (toolCall.function.name === "create_shop_item") {
+            } else if (tc.function.name === "create_shop_item") {
               await storage.createShopItem({ ...args, userId, category: "custom" });
-            } else if (toolCall.function.name === "delete_shop_item") {
+            } else if (tc.function.name === "delete_shop_item") {
               await storage.deleteShopItem(args.itemId);
-            } else if (toolCall.function.name === "create_schedule_item") {
+            } else if (tc.function.name === "create_schedule_item") {
               await storage.createScheduleItem({ ...args, userId, startTime: new Date(args.startTime), endTime: new Date(args.endTime) });
             }
           } catch (error) {
-            console.error(`Tool execution error (${toolCall.function.name}):`, error);
+            console.error(`Tool execution error (${tc.function.name}):`, error);
             result = `Error: ${error instanceof Error ? error.message : String(error)}`;
           }
           
           toolResults.push({
             role: "tool",
-            tool_call_id: toolCall.id,
-            name: toolCall.function.name,
+            tool_call_id: tc.id,
+            name: tc.function.name,
             content: result
           });
         }
