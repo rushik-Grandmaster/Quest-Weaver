@@ -349,26 +349,152 @@ export async function registerRoutes(
         content: m.content
       }));
 
+      const tools = [
+        {
+          type: "function",
+          function: {
+            name: "create_task",
+            description: "Create a new quest or task for the user",
+            parameters: {
+              type: "object",
+              properties: {
+                title: { type: "string", description: "The title of the task" },
+                category: { type: "string", enum: ["daily", "one_time", "habit"], description: "The type of task" },
+                difficulty: { type: "string", enum: ["easy", "medium", "hard"], description: "How difficult the task is" },
+                rewardXp: { type: "number", description: "XP reward (default 10)" },
+                rewardPoints: { type: "number", description: "Point reward (default 5)" }
+              },
+              required: ["title", "category"]
+            }
+          }
+        },
+        {
+          type: "function",
+          function: {
+            name: "delete_task",
+            description: "Remove a task by its ID",
+            parameters: {
+              type: "object",
+              properties: {
+                taskId: { type: "number", description: "The ID of the task to delete" }
+              },
+              required: ["taskId"]
+            }
+          }
+        },
+        {
+          type: "function",
+          function: {
+            name: "create_shop_item",
+            description: "Create a new item in the user's custom shop",
+            parameters: {
+              type: "object",
+              properties: {
+                name: { type: "string", description: "Name of the item" },
+                description: { type: "string", description: "What the item does" },
+                cost: { type: "number", description: "How many points it costs" },
+                icon: { type: "string", description: "Lucide icon name (e.g., 'gift', 'sword', 'shield')" }
+              },
+              required: ["name", "description", "cost"]
+            }
+          }
+        },
+        {
+          type: "function",
+          function: {
+            name: "delete_shop_item",
+            description: "Remove an item from the shop by its ID",
+            parameters: {
+              type: "object",
+              properties: {
+                itemId: { type: "number", description: "The ID of the item to delete" }
+              },
+              required: ["itemId"]
+            }
+          }
+        },
+        {
+          type: "function",
+          function: {
+            name: "create_schedule_item",
+            description: "Schedule a task or event in the user's planner",
+            parameters: {
+              type: "object",
+              properties: {
+                title: { type: "string", description: "What the event is" },
+                startTime: { type: "string", description: "ISO 8601 date string" },
+                endTime: { type: "string", description: "ISO 8601 date string" },
+                description: { type: "string", description: "Optional details" }
+              },
+              required: ["title", "startTime", "endTime"]
+            }
+          }
+        }
+      ];
+
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: "You are Luminous, an advanced AI life coach with GPT-4o intelligence. You provide high-level reasoning, complex problem solving, and deep insights into productivity and personal growth. Be supportive, brilliant, and concise. Your responses will be read aloud by a text-to-speech engine, so keep them natural and conversational." },
+          { role: "system", content: "You are Luminous, an advanced AI life coach. You help users manage their life as an RPG. You have access to tools to manage their tasks (quests), shop, and schedule. When a user asks you to add or remove items, quests, or schedule events, use the appropriate tool. Always confirm the action in your response. For scheduling, ensure you use ISO 8601 date strings for startTime and endTime." },
           ...chatHistory,
           { role: "user", content: message }
         ],
+        tools: tools as any,
+        tool_choice: "auto",
         max_completion_tokens: 2048,
       });
 
-      const aiContent = completion.choices[0].message.content || "I'm sorry, I couldn't process that.";
-      
-      // Save AI message
-      await storage.saveAiMessage({
-        userId,
-        role: "assistant",
-        content: aiContent,
-        type: "text"
-      });
+      const responseMessage = completion.choices[0].message;
 
+      if (responseMessage.tool_calls) {
+        const toolResults = [];
+        for (const toolCall of responseMessage.tool_calls) {
+          const args = JSON.parse(toolCall.function.arguments);
+          let result = "Success";
+          
+          try {
+            if (toolCall.function.name === "create_task") {
+              await storage.createTask({ ...args, userId });
+            } else if (toolCall.function.name === "delete_task") {
+              await storage.deleteTask(args.taskId);
+            } else if (toolCall.function.name === "create_shop_item") {
+              await storage.createShopItem({ ...args, userId, category: "custom" });
+            } else if (toolCall.function.name === "delete_shop_item") {
+              await storage.deleteShopItem(args.itemId);
+            } else if (toolCall.function.name === "create_schedule_item") {
+              await storage.createScheduleItem({ ...args, userId, startTime: new Date(args.startTime), endTime: new Date(args.endTime) });
+            }
+          } catch (error) {
+            console.error(`Tool execution error (${toolCall.function.name}):`, error);
+            result = `Error: ${error instanceof Error ? error.message : String(error)}`;
+          }
+          
+          toolResults.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            name: toolCall.function.name,
+            content: result
+          });
+        }
+
+        const finalCompletion = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: "The tools have been executed. Confirm to the user that their request has been completed or explain any errors." },
+            ...chatHistory,
+            { role: "user", content: message },
+            responseMessage as any,
+            ...toolResults as any
+          ]
+        });
+
+        const aiContent = finalCompletion.choices[0].message.content || "I've processed your request.";
+        await storage.saveAiMessage({ userId, role: "assistant", content: aiContent, type: "text" });
+        return res.json({ message: aiContent, type: "text" });
+      }
+
+      const aiContent = responseMessage.content || "I'm sorry, I couldn't process that.";
+      await storage.saveAiMessage({ userId, role: "assistant", content: aiContent, type: "text" });
       res.json({ message: aiContent, type: "text" });
     } catch (err) {
       console.error("AI Chat error:", err);

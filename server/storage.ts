@@ -45,6 +45,9 @@ export interface IStorage {
   createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry>;
   updateDiaryEntry(id: number, updates: Partial<DiaryEntry>): Promise<DiaryEntry>;
   deleteDiaryEntry(id: number): Promise<void>;
+  
+  // Shop deletion
+  deleteShopItem(id: number): Promise<void>;
 
   // AI Chat
   getAiHistory(userId: string): Promise<any[]>;
@@ -206,6 +209,10 @@ export class DatabaseStorage implements IStorage {
 
   async deleteDiaryEntry(id: number): Promise<void> {
     await db.delete(diaryEntries).where(eq(diaryEntries.id, id));
+  }
+
+  async deleteShopItem(id: number): Promise<void> {
+    await db.delete(shopItems).where(eq(shopItems.id, id));
   }
 
   // Luminous AI

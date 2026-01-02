@@ -145,6 +145,19 @@ export default function Luminous() {
       };
       setMessages((prev) => [...prev, assistantMessage]);
       
+      // Invalidate queries if actions were performed
+      if (data.message.toLowerCase().includes("added") || 
+          data.message.toLowerCase().includes("created") || 
+          data.message.toLowerCase().includes("removed") || 
+          data.message.toLowerCase().includes("deleted") ||
+          data.message.toLowerCase().includes("scheduled")) {
+        import("@/lib/queryClient").then(({ queryClient }) => {
+          queryClient.invalidateQueries({ queryKey: [api.tasks.list.path] });
+          queryClient.invalidateQueries({ queryKey: [api.shop.list.path] });
+          queryClient.invalidateQueries({ queryKey: [api.schedule.list.path] });
+        });
+      }
+
       if (data.type === "text" && isListening) {
         speak(data.message);
       }
