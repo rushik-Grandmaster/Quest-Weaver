@@ -97,8 +97,15 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async deleteTask(id: number): Promise<void> {
-    await db.delete(tasks).where(eq(tasks.id, id));
+  async getScheduleItems(userId: string): Promise<ScheduleItem[]> {
+    return await db.select().from(scheduleItems)
+      .where(eq(scheduleItems.userId, userId))
+      .orderBy(scheduleItems.startTime);
+  }
+
+  async getScheduleItem(id: number): Promise<ScheduleItem | undefined> {
+    const [item] = await db.select().from(scheduleItems).where(eq(scheduleItems.id, id));
+    return item;
   }
 
   async createScheduleItem(item: InsertScheduleItem): Promise<ScheduleItem> {
@@ -132,6 +139,22 @@ export class DatabaseStorage implements IStorage {
   async createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry> {
     const [newEntry] = await db.insert(diaryEntries).values([entry]).returning();
     return newEntry;
+  }
+
+  async updateDiaryEntry(id: number, updates: Partial<DiaryEntry>): Promise<DiaryEntry> {
+    const [updated] = await db.update(diaryEntries)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(diaryEntries.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDiaryEntry(id: number): Promise<void> {
+    await db.delete(diaryEntries).where(eq(diaryEntries.id, id));
+  }
+
+  async deleteShopItem(id: number): Promise<void> {
+    await db.delete(shopItems).where(eq(shopItems.id, id));
   }
 
   async updateDiaryEntry(id: number, updates: Partial<DiaryEntry>): Promise<DiaryEntry> {
