@@ -85,7 +85,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTask(task: InsertTask): Promise<Task> {
-    const [newTask] = await db.insert(tasks).values(task).returning();
+    const [newTask] = await db.insert(tasks).values([task]).returning();
     return newTask;
   }
 
@@ -102,7 +102,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createScheduleItem(item: InsertScheduleItem): Promise<ScheduleItem> {
-    const [newItem] = await db.insert(scheduleItems).values(item).returning();
+    const [newItem] = await db.insert(scheduleItems).values([item]).returning();
     return newItem;
   }
 
@@ -130,7 +130,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry> {
-    const [newEntry] = await db.insert(diaryEntries).values(entry).returning();
+    const [newEntry] = await db.insert(diaryEntries).values([entry]).returning();
     return newEntry;
   }
 

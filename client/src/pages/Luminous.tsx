@@ -191,7 +191,7 @@ export default function Luminous() {
                 <Sparkles className="w-16 h-16 text-primary mx-auto mb-4 animate-pulse" />
               </motion.div>
               <h2 className="text-4xl md:text-6xl font-display font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-500">
-                Welcome {user?.username || "Rushik Sama"}
+                Welcome {user?.firstName || "Traveler"}
               </h2>
               <p className="text-xl text-muted-foreground font-medium">Luminous is ready for you</p>
             </div>
@@ -213,7 +213,7 @@ export default function Luminous() {
       </motion.div>
 
       <div className="flex-1 w-full bg-card rounded-3xl border border-border/50 overflow-hidden flex flex-col mb-2 shadow-xl shadow-primary/5">
-        <ScrollArea className="flex-1 p-4" viewportRef={scrollRef}>
+        <ScrollArea className="flex-1 p-4">
           <div className="space-y-6">
             <AnimatePresence initial={false}>
               {messages.map((m, i) => (
