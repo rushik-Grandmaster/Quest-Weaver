@@ -77,7 +77,7 @@ export async function registerRoutes(
     res.json(updated);
   });
 
-  app.delete(api.tasks.delete.path, requireAuth, async (req: any, res) => {
+  app.delete("/api/tasks/:id", requireAuth, async (req: any, res) => {
     const task = await storage.getTask(Number(req.params.id));
     if (!task || task.userId !== req.user.claims.sub) {
       return res.status(404).json({ message: "Task not found" });

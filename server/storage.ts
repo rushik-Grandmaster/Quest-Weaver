@@ -121,56 +121,58 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async deleteScheduleItem(id: number): Promise<void> {
-    await db.delete(scheduleItems).where(eq(scheduleItems.id, id));
+  async deleteTask(id: number): Promise<void> {
+    await db.delete(tasks).where(eq(tasks.id, id));
   }
 
-  async getDiaryEntries(userId: string): Promise<DiaryEntry[]> {
-    return await db.select().from(diaryEntries)
-      .where(eq(diaryEntries.userId, userId))
-      .orderBy(desc(diaryEntries.createdAt));
+  async getShopItems(userId: string): Promise<ShopItem[]> {
+    // Get system items (userId is null) AND user custom items
+    return await db.select().from(shopItems)
+      .where(
+        sql`(${shopItems.userId} IS NULL OR ${shopItems.userId} = ${userId})`
+      );
   }
 
-  async getDiaryEntry(id: number): Promise<DiaryEntry | undefined> {
-    const [entry] = await db.select().from(diaryEntries).where(eq(diaryEntries.id, id));
-    return entry;
+  async getShopItem(id: number): Promise<ShopItem | undefined> {
+    const [item] = await db.select().from(shopItems).where(eq(shopItems.id, id));
+    return item;
   }
 
-  async createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry> {
-    const [newEntry] = await db.insert(diaryEntries).values([entry]).returning();
-    return newEntry;
+  async createShopItem(item: InsertShopItem): Promise<ShopItem> {
+    const [newItem] = await db.insert(shopItems).values([item]).returning();
+    return newItem;
   }
 
-  async updateDiaryEntry(id: number, updates: Partial<DiaryEntry>): Promise<DiaryEntry> {
-    const [updated] = await db.update(diaryEntries)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(eq(diaryEntries.id, id))
+  async getInventory(userId: string): Promise<{inventoryId: number, item: ShopItem, acquiredAt: Date, isUsed: boolean, usedAt: Date | null}[]> {
+    const result = await db.select({
+      inventoryId: inventory.id,
+      item: shopItems,
+      acquiredAt: inventory.acquiredAt,
+      isUsed: inventory.isUsed,
+      usedAt: inventory.usedAt,
+    })
+    .from(inventory)
+    .innerJoin(shopItems, eq(inventory.itemId, shopItems.id))
+    .where(eq(inventory.userId, userId));
+    
+    return result;
+  }
+
+  async addToInventory(userId: string, itemId: number): Promise<InventoryItem> {
+    const [item] = await db.insert(inventory).values([{ userId, itemId }]).returning();
+    return item;
+  }
+
+  async useInventoryItem(id: number): Promise<InventoryItem> {
+    const [item] = await db.update(inventory)
+      .set({ isUsed: true, usedAt: new Date() })
+      .where(eq(inventory.id, id))
       .returning();
-    return updated;
+    return item;
   }
 
-  async deleteDiaryEntry(id: number): Promise<void> {
-    await db.delete(diaryEntries).where(eq(diaryEntries.id, id));
-  }
-
-  async deleteShopItem(id: number): Promise<void> {
-    await db.delete(shopItems).where(eq(shopItems.id, id));
-  }
-
-  async updateDiaryEntry(id: number, updates: Partial<DiaryEntry>): Promise<DiaryEntry> {
-    const [updated] = await db.update(diaryEntries)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(eq(diaryEntries.id, id))
-      .returning();
-    return updated;
-  }
-
-  async deleteDiaryEntry(id: number): Promise<void> {
-    await db.delete(diaryEntries).where(eq(diaryEntries.id, id));
-  }
-
-  async deleteShopItem(id: number): Promise<void> {
-    await db.delete(shopItems).where(eq(shopItems.id, id));
+  async deleteInventoryItem(id: number): Promise<void> {
+    await db.delete(inventory).where(eq(inventory.id, id));
   }
 
   // Luminous AI
