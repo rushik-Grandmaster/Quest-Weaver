@@ -504,6 +504,47 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/ai/body-fat", requireAuth, async (req: any, res) => {
+    try {
+      const { image, height, weight } = req.body;
+      if (!image || !height || !weight) {
+        return res.status(400).json({ message: "Image, height, and weight are required" });
+      }
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "You are a professional fitness and body composition expert. Analyze the provided photo along with height and weight to estimate body fat percentage. Return ONLY a JSON object with 'bodyFat' (number) and 'analysis' (string)."
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: `Height: ${height}cm, Weight: ${weight}kg. Estimate body fat.` },
+              { type: "image_url", image_url: { url: image } }
+            ]
+          }
+        ],
+        response_format: { type: "json_object" }
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || "{}");
+      const scan = await storage.saveBodyFatScan({
+        userId: req.user.claims.sub,
+        imageUrl: image,
+        height: parseInt(height),
+        weight: parseInt(weight),
+        estimatedBodyFat: result.bodyFat
+      });
+
+      res.json({ ...result, id: scan.id });
+    } catch (err) {
+      console.error("Body fat analysis error:", err);
+      res.status(500).json({ message: "Analysis failed" });
+    }
+  });
+
   return httpServer;
 }
 

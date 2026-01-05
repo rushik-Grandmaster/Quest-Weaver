@@ -52,6 +52,7 @@ export interface IStorage {
   // AI Chat
   getAiHistory(userId: string): Promise<any[]>;
   saveAiMessage(message: any): Promise<any>;
+  saveBodyFatScan(scan: any): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -184,6 +185,11 @@ export class DatabaseStorage implements IStorage {
 
   async saveAiMessage(message: any): Promise<any> {
     const [saved] = await db.insert(aiChatMessages).values(message).returning();
+    return saved;
+  }
+
+  async saveBodyFatScan(scan: any): Promise<any> {
+    const [saved] = await db.insert(bodyFatScans).values(scan).returning();
     return saved;
   }
 }

@@ -68,10 +68,27 @@ export const diaryEntries = pgTable("diary_entries", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const bodyFatScans = pgTable("body_fat_scans", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  imageUrl: text("image_url").notNull(),
+  height: integer("height").notNull(), // in cm
+  weight: integer("weight").notNull(), // in kg
+  estimatedBodyFat: integer("estimated_body_fat").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // === RELATIONS ===
 export const userStatsRelations = relations(userStats, ({ one }) => ({
   user: one(users, {
     fields: [userStats.userId],
+    references: [users.id],
+  }),
+}));
+
+export const bodyFatScansRelations = relations(bodyFatScans, ({ one }) => ({
+  user: one(users, {
+    fields: [bodyFatScans.userId],
     references: [users.id],
   }),
 }));
@@ -167,6 +184,10 @@ export const insertDiaryEntrySchema = createInsertSchema(diaryEntries).omit({ id
   mood: z.enum(['happy', 'sad', 'angry', 'neutral', 'excited']).default('neutral'),
 });
 
+export const insertBodyFatScanSchema = createInsertSchema(bodyFatScans).omit({ id: true, createdAt: true }).extend({
+  userId: z.string().optional(),
+});
+
 // === TYPES ===
 export type UserStats = typeof userStats.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
@@ -174,8 +195,10 @@ export type ShopItem = typeof shopItems.$inferSelect;
 export type InventoryItem = typeof inventory.$inferSelect;
 export type ScheduleItem = typeof scheduleItems.$inferSelect;
 export type DiaryEntry = typeof diaryEntries.$inferSelect;
+export type BodyFatScan = typeof bodyFatScans.$inferSelect;
 
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type InsertShopItem = z.infer<typeof insertShopItemSchema>;
 export type InsertScheduleItem = z.infer<typeof insertScheduleItemSchema>;
 export type InsertDiaryEntry = z.infer<typeof insertDiaryEntrySchema>;
+export type InsertBodyFatScan = z.infer<typeof insertBodyFatScanSchema>;
