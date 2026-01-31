@@ -53,6 +53,7 @@ export interface IStorage {
   getAiHistory(userId: string): Promise<any[]>;
   saveAiMessage(message: any): Promise<any>;
   saveBodyFatScan(scan: any): Promise<any>;
+  getBodyFatScans(userId: string): Promise<BodyFatScan[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -191,6 +192,12 @@ export class DatabaseStorage implements IStorage {
   async saveBodyFatScan(scan: any): Promise<any> {
     const [saved] = await db.insert(bodyFatScans).values(scan).returning();
     return saved;
+  }
+
+  async getBodyFatScans(userId: string): Promise<BodyFatScan[]> {
+    return await db.select().from(bodyFatScans)
+      .where(eq(bodyFatScans.userId, userId))
+      .orderBy(desc(bodyFatScans.createdAt));
   }
 }
 

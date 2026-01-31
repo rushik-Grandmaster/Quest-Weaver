@@ -350,6 +350,12 @@ export async function registerRoutes(
         content: m.content
       }));
 
+      // Get body fat scan history for context
+      const bodyFatScans = await storage.getBodyFatScans(userId);
+      const healthContext = bodyFatScans.length > 0 
+        ? `\n\nRecent Body Fat Scans:\n${bodyFatScans.slice(0, 3).map(s => `- ${s.createdAt.toLocaleDateString()}: ${s.estimatedBodyFat}% body fat (Height: ${s.height}cm, Weight: ${s.weight}kg)`).join('\n')}`
+        : "";
+
       const tools = [
         {
           type: "function",
@@ -436,7 +442,7 @@ export async function registerRoutes(
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: "You are Luminous, an advanced AI life coach. You help users manage their life as an RPG. You have access to tools to manage their tasks (quests), shop, and schedule. Always refer to the user as Rushik Sama. When a user asks you to add or remove items, quests, or schedule events, use the appropriate tool. Always confirm the action in your response. For scheduling, ensure you use ISO 8601 date strings for startTime and endTime." },
+          { role: "system", content: "You are Luminous, an advanced AI life coach. You help users manage their life as an RPG. You have access to tools to manage their tasks (quests), shop, and schedule. Always refer to the user as Rushik Sama. When a user asks you to add or remove items, quests, or schedule events, use the appropriate tool. Always confirm the action in your response. For scheduling, ensure you use ISO 8601 date strings for startTime and endTime." + healthContext },
           ...chatHistory,
           { role: "user", content: message }
         ],
