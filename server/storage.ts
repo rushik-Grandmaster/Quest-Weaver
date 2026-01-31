@@ -1,12 +1,11 @@
 import { db } from "./db";
 import {
   users, userStats, tasks, shopItems, inventory, scheduleItems, diaryEntries,
-  aiChatMessages, conversations, messages,
-  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry,
-  type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertUserStats
+  aiChatMessages, conversations, messages, bodyFatScans,
+  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan,
+  type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertBodyFatScan
 } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { authStorage } from "./replit_integrations/auth/storage";
 
 export interface IStorage {
   // User Stats
@@ -25,6 +24,7 @@ export interface IStorage {
   getShopItems(userId: string): Promise<ShopItem[]>;
   getShopItem(id: number): Promise<ShopItem | undefined>;
   createShopItem(item: InsertShopItem): Promise<ShopItem>;
+  deleteShopItem(id: number): Promise<void>;
   
   // Inventory
   getInventory(userId: string): Promise<{inventoryId: number, item: ShopItem, acquiredAt: Date, isUsed: boolean, usedAt: Date | null}[]>;
@@ -46,13 +46,12 @@ export interface IStorage {
   updateDiaryEntry(id: number, updates: Partial<DiaryEntry>): Promise<DiaryEntry>;
   deleteDiaryEntry(id: number): Promise<void>;
   
-  // Shop deletion
-  deleteShopItem(id: number): Promise<void>;
-
   // AI Chat
   getAiHistory(userId: string): Promise<any[]>;
   saveAiMessage(message: any): Promise<any>;
-  saveBodyFatScan(scan: any): Promise<any>;
+  
+  // Body Fat
+  saveBodyFatScan(scan: InsertBodyFatScan): Promise<BodyFatScan>;
   getBodyFatScans(userId: string): Promise<BodyFatScan[]>;
 }
 
@@ -87,7 +86,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTask(task: InsertTask): Promise<Task> {
-    const [newTask] = await db.insert(tasks).values([task]).returning();
+    const [newTask] = await db.insert(tasks).values([task as any]).returning();
     return newTask;
   }
 
@@ -99,36 +98,11 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async getScheduleItems(userId: string): Promise<ScheduleItem[]> {
-    return await db.select().from(scheduleItems)
-      .where(eq(scheduleItems.userId, userId))
-      .orderBy(scheduleItems.startTime);
-  }
-
-  async getScheduleItem(id: number): Promise<ScheduleItem | undefined> {
-    const [item] = await db.select().from(scheduleItems).where(eq(scheduleItems.id, id));
-    return item;
-  }
-
-  async createScheduleItem(item: InsertScheduleItem): Promise<ScheduleItem> {
-    const [newItem] = await db.insert(scheduleItems).values([item]).returning();
-    return newItem;
-  }
-
-  async updateScheduleItem(id: number, updates: Partial<ScheduleItem>): Promise<ScheduleItem> {
-    const [updated] = await db.update(scheduleItems)
-      .set(updates)
-      .where(eq(scheduleItems.id, id))
-      .returning();
-    return updated;
-  }
-
   async deleteTask(id: number): Promise<void> {
     await db.delete(tasks).where(eq(tasks.id, id));
   }
 
   async getShopItems(userId: string): Promise<ShopItem[]> {
-    // Get system items (userId is null) AND user custom items
     return await db.select().from(shopItems)
       .where(
         sql`(${shopItems.userId} IS NULL OR ${shopItems.userId} = ${userId})`
@@ -143,6 +117,10 @@ export class DatabaseStorage implements IStorage {
   async createShopItem(item: InsertShopItem): Promise<ShopItem> {
     const [newItem] = await db.insert(shopItems).values([item]).returning();
     return newItem;
+  }
+
+  async deleteShopItem(id: number): Promise<void> {
+    await db.delete(shopItems).where(eq(shopItems.id, id));
   }
 
   async getInventory(userId: string): Promise<{inventoryId: number, item: ShopItem, acquiredAt: Date, isUsed: boolean, usedAt: Date | null}[]> {
@@ -177,7 +155,62 @@ export class DatabaseStorage implements IStorage {
     await db.delete(inventory).where(eq(inventory.id, id));
   }
 
-  // Luminous AI
+  async getScheduleItems(userId: string): Promise<ScheduleItem[]> {
+    return await db.select().from(scheduleItems)
+      .where(eq(scheduleItems.userId, userId))
+      .orderBy(scheduleItems.startTime);
+  }
+
+  async getScheduleItem(id: number): Promise<ScheduleItem | undefined> {
+    const [item] = await db.select().from(scheduleItems).where(eq(scheduleItems.id, id));
+    return item;
+  }
+
+  async createScheduleItem(item: InsertScheduleItem): Promise<ScheduleItem> {
+    const [newItem] = await db.insert(scheduleItems).values([item as any]).returning();
+    return newItem;
+  }
+
+  async updateScheduleItem(id: number, updates: Partial<ScheduleItem>): Promise<ScheduleItem> {
+    const [updated] = await db.update(scheduleItems)
+      .set(updates)
+      .where(eq(scheduleItems.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteScheduleItem(id: number): Promise<void> {
+    await db.delete(scheduleItems).where(eq(scheduleItems.id, id));
+  }
+
+  async getDiaryEntries(userId: string): Promise<DiaryEntry[]> {
+    return await db.select().from(diaryEntries)
+      .where(eq(diaryEntries.userId, userId))
+      .orderBy(desc(diaryEntries.createdAt));
+  }
+
+  async getDiaryEntry(id: number): Promise<DiaryEntry | undefined> {
+    const [entry] = await db.select().from(diaryEntries).where(eq(diaryEntries.id, id));
+    return entry;
+  }
+
+  async createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry> {
+    const [newEntry] = await db.insert(diaryEntries).values([entry as any]).returning();
+    return newEntry;
+  }
+
+  async updateDiaryEntry(id: number, updates: Partial<DiaryEntry>): Promise<DiaryEntry> {
+    const [updated] = await db.update(diaryEntries)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(diaryEntries.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDiaryEntry(id: number): Promise<void> {
+    await db.delete(diaryEntries).where(eq(diaryEntries.id, id));
+  }
+
   async getAiHistory(userId: string): Promise<any[]> {
     return await db.select().from(aiChatMessages)
       .where(eq(aiChatMessages.userId, userId))
@@ -189,8 +222,8 @@ export class DatabaseStorage implements IStorage {
     return saved;
   }
 
-  async saveBodyFatScan(scan: any): Promise<any> {
-    const [saved] = await db.insert(bodyFatScans).values(scan).returning();
+  async saveBodyFatScan(scan: InsertBodyFatScan): Promise<BodyFatScan> {
+    const [saved] = await db.insert(bodyFatScans).values(scan as any).returning();
     return saved;
   }
 
