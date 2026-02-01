@@ -139,12 +139,17 @@ export default function BodyFatAnalysis() {
                       <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center space-y-4">
                         <Upload className="w-12 h-12 text-primary/40" />
                         <div className="space-y-1">
-                          <p className="font-medium">Click to upload photo</p>
+                          <p className="font-medium text-primary">Take photo or upload</p>
                           <p className="text-xs text-muted-foreground">Front view, standing straight</p>
                         </div>
+                        <Button variant="outline" className="relative pointer-events-none">
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload Photo
+                        </Button>
                         <Input
                           type="file"
                           accept="image/*"
+                          capture="user"
                           className="absolute inset-0 opacity-0 cursor-pointer"
                           onChange={handleImageUpload}
                         />
