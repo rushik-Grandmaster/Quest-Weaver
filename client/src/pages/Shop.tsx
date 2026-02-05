@@ -12,12 +12,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertShopItemSchema, type InsertShopItem } from "@shared/schema";
+import { useSound } from "@/hooks/use-sound";
 
 export default function Shop() {
   const { data: items, isLoading } = useShopItems();
   const { data: stats } = useUserStats();
   const { mutate: buyItem, isPending: isBuying } = useBuyItem();
   const { toast } = useToast();
+  const { playSound } = useSound();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   const handleBuy = (item: any) => {
@@ -29,6 +31,7 @@ export default function Shop() {
       });
       return;
     }
+    playSound("gold");
     buyItem(item.id);
   };
 

@@ -11,13 +11,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, Filter, Trash2, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import { useSound } from "@/hooks/use-sound";
 
 export default function Tasks() {
   const { data: tasks, isLoading } = useTasks();
   const { mutate: deleteTask } = useDeleteTask();
   const { mutate: completeTask } = useCompleteTask();
+  const { playSound } = useSound();
   const [filter, setFilter] = useState<string>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  const handleComplete = (id: number) => {
+    playSound("task");
+    completeTask(id);
+  };
 
   const filteredTasks = tasks?.filter(task => {
     if (filter === "all") return !task.isCompleted;
@@ -99,7 +106,7 @@ export default function Tasks() {
                   {!task.isCompleted && (
                     <Button 
                       size="sm" 
-                      onClick={() => completeTask(task.id)}
+                      onClick={() => handleComplete(task.id)}
                       className="bg-primary hover:bg-primary/90 text-white rounded-lg shadow-lg shadow-primary/20"
                     >
                       Complete
