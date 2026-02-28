@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -34,6 +34,8 @@ export default function BodyFatAnalysis() {
     },
   });
 
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -45,6 +47,10 @@ export default function BodyFatAnalysis() {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const triggerUpload = () => {
+    fileInputRef.current?.click();
   };
 
   const onSubmit = async (data: BodyFatFormData) => {
@@ -130,7 +136,14 @@ export default function BodyFatAnalysis() {
                       <>
                         <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Button variant="secondary" onClick={() => setImagePreview(null)}>
+                          <Button 
+                            type="button"
+                            variant="secondary" 
+                            onClick={() => {
+                              setImagePreview(null);
+                              form.setValue("image", "");
+                            }}
+                          >
                             Change Photo
                           </Button>
                         </div>
@@ -142,16 +155,43 @@ export default function BodyFatAnalysis() {
                           <p className="font-medium text-primary">Take photo or upload</p>
                           <p className="text-xs text-muted-foreground">Front view, standing straight</p>
                         </div>
-                        <Button variant="outline" className="relative pointer-events-none">
-                          <Upload className="w-4 h-4 mr-2" />
-                          Upload Photo
-                        </Button>
-                        <Input
+                        <div className="flex flex-col sm:flex-row gap-3 z-10">
+                          <Button 
+                            type="button"
+                            variant="outline" 
+                            onClick={triggerUpload}
+                            className="flex-1"
+                          >
+                            <Upload className="w-4 h-4 mr-2" />
+                            Upload Photo
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              if (fileInputRef.current) {
+                                fileInputRef.current.setAttribute("capture", "environment");
+                                fileInputRef.current.click();
+                              }
+                            }}
+                            className="flex-1"
+                          >
+                            <Camera className="w-4 h-4 mr-2" />
+                            Take Photo
+                          </Button>
+                        </div>
+                        <input
                           type="file"
+                          ref={fileInputRef}
                           accept="image/*"
-                          capture="user"
-                          className="absolute inset-0 opacity-0 cursor-pointer"
-                          onChange={handleImageUpload}
+                          className="hidden"
+                          onChange={(e) => {
+                            handleImageUpload(e);
+                            // Reset capture attribute for next time
+                            if (fileInputRef.current) {
+                              fileInputRef.current.removeAttribute("capture");
+                            }
+                          }}
                         />
                       </div>
                     )}
