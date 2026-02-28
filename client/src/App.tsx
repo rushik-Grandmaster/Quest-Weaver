@@ -19,6 +19,7 @@ import UsedItems from "@/pages/UsedItems";
 import Schedule from "@/pages/Schedule";
 import Diary from "@/pages/Diary";
 import Luminous from "@/pages/Luminous";
+import LuminousLens from "@/pages/LuminousLens";
 import Streaks from "@/pages/Streaks";
 import BodyFatAnalysis from "@/pages/BodyFatAnalysis";
 import Login from "@/pages/Login";
@@ -84,6 +85,7 @@ function Router() {
         <Route path="/schedule" component={Schedule} />
         <Route path="/diary" component={Diary} />
         <Route path="/luminous" component={Luminous} />
+        <Route path="/lens" component={LuminousLens} />
         <Route path="/streaks" component={Streaks} />
         <Route path="/body-fat" component={BodyFatAnalysis} />
         <Route component={NotFound} />

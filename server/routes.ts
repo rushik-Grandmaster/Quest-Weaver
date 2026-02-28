@@ -551,6 +551,37 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/ai/lens", requireAuth, async (req: any, res) => {
+    try {
+      const { image } = req.body;
+      if (!image) {
+        return res.status(400).json({ message: "Image is required" });
+      }
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "You are Luminous Lens, a visual intelligence system. Analyze the provided image and provide detailed information about what you see. Identify objects, translate text, or provide historical/scientific context. Keep your response helpful, concise, and addressed to Rushik Sama."
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Analyze this image and tell me what you see, Rushik Sama." },
+              { type: "image_url", image_url: { url: image } }
+            ]
+          }
+        ]
+      });
+
+      res.json({ analysis: response.choices[0].message.content });
+    } catch (err) {
+      console.error("Luminous Lens error:", err);
+      res.status(500).json({ message: "Visual analysis failed" });
+    }
+  });
+
   return httpServer;
 }
 
