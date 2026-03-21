@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,47 +7,55 @@
 :root {
   --font-sans: 'Outfit', sans-serif;
   --font-display: 'Space Grotesk', sans-serif;
+  --font-mono: 'Share Tech Mono', monospace;
 
-  /* Dark mode default for gaming aesthetic */
-  --background: 224 71% 4%;
+  /* Solo Leveling dark system palette */
+  --background: 222 84% 3%;
   --foreground: 213 31% 91%;
 
-  --card: 224 71% 6%;
+  --card: 222 70% 5%;
   --card-foreground: 213 31% 91%;
   
-  --popover: 224 71% 6%;
+  --popover: 222 70% 5%;
   --popover-foreground: 213 31% 91%;
 
-  --primary: 263 70% 50%; /* Purple for main actions */
+  --primary: 238 90% 63%;
   --primary-foreground: 210 40% 98%;
 
-  --secondary: 217 19% 27%;
+  --secondary: 222 40% 12%;
   --secondary-foreground: 210 40% 98%;
 
-  --muted: 217 19% 27%;
-  --muted-foreground: 215 20% 65%;
+  --muted: 222 40% 12%;
+  --muted-foreground: 215 20% 55%;
 
-  --accent: 142 71% 45%; /* Green for success/XP */
+  --accent: 142 71% 45%;
   --accent-foreground: 144 70% 10%;
 
   --destructive: 0 84% 60%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 217 19% 27%;
-  --input: 217 19% 27%;
-  --ring: 263 70% 50%;
+  --border: 238 30% 18%;
+  --input: 238 30% 18%;
+  --ring: 238 90% 63%;
 
-  --radius: 0.75rem;
+  --radius: 0.5rem;
   
-  /* Custom game colors */
   --gold: 48 96% 53%;
   --xp: 142 71% 45%;
+
+  /* Glow colors */
+  --glow-primary: rgba(99, 102, 241, 0.35);
+  --glow-primary-sm: rgba(99, 102, 241, 0.15);
+  --glow-blue: rgba(59, 130, 246, 0.3);
 }
 
 @layer base {
   body {
     @apply bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary-foreground;
     font-family: var(--font-sans);
+    background-image:
+      radial-gradient(ellipse at 15% 20%, rgba(99, 102, 241, 0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 85% 80%, rgba(59, 130, 246, 0.04) 0%, transparent 50%);
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -56,13 +64,103 @@
   }
 }
 
+/* ── System UI Components ── */
 @layer components {
+  /* Glass panel with Solo Leveling glow */
   .glass-panel {
-    @apply bg-card/50 backdrop-blur-xl border border-white/5 shadow-xl;
+    background: rgba(6, 10, 26, 0.85);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    box-shadow: 0 0 30px rgba(99, 102, 241, 0.05), inset 0 1px 0 rgba(255,255,255,0.03);
   }
-  
+
+  /* System-style panel with bracket corners */
+  .system-panel {
+    position: relative;
+    background: rgba(6, 10, 26, 0.9);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.07), inset 0 1px 0 rgba(255,255,255,0.02);
+  }
+
+  .system-panel::before,
+  .system-panel::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-color: rgba(99, 102, 241, 0.6);
+    border-style: solid;
+  }
+
+  .system-panel::before {
+    top: -1px;
+    left: -1px;
+    border-width: 2px 0 0 2px;
+  }
+
+  .system-panel::after {
+    bottom: -1px;
+    right: -1px;
+    border-width: 0 2px 2px 0;
+  }
+
+  /* HUD label above sections */
+  .hud-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: rgba(99, 102, 241, 0.55);
+  }
+
+  /* System badge (stat chips) */
+  .system-badge {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    border: 1px solid;
+    padding: 2px 10px;
+    border-radius: 2px;
+  }
+
+  /* Gradient text utility */
+  .text-system {
+    background: linear-gradient(135deg, #e2e8f0, #c7d2fe 50%, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 20px rgba(99, 102, 241, 0.3));
+  }
+
+  /* Active/glow border for nav */
+  .nav-active {
+    background: rgba(99, 102, 241, 0.1);
+    border-left: 2px solid rgba(99, 102, 241, 0.9);
+    box-shadow: inset 4px 0 12px rgba(99, 102, 241, 0.08);
+    color: rgba(165, 180, 252, 1);
+  }
+
+  /* XP bar track */
+  .xp-track {
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  /* Quest card hover */
+  .quest-card {
+    background: rgba(6, 10, 26, 0.8);
+    border: 1px solid rgba(99, 102, 241, 0.12);
+    transition: all 0.2s ease;
+  }
+
+  .quest-card:hover {
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.08);
+  }
+
   .gaming-gradient {
-    @apply bg-gradient-to-br from-primary via-purple-600 to-blue-600;
+    @apply bg-gradient-to-br from-indigo-600 via-violet-700 to-blue-700;
   }
 
   .gold-gradient {
@@ -73,3 +171,23 @@
     @apply bg-gradient-to-r from-emerald-500 to-green-400;
   }
 }
+
+/* ── Animations ── */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 12px rgba(99, 102, 241, 0.3); }
+  50%       { box-shadow: 0 0 25px rgba(99, 102, 241, 0.6); }
+}
+
+@keyframes scan {
+  0%   { transform: translateY(0); opacity: 0.4; }
+  50%  { opacity: 0.8; }
+  100% { transform: translateY(100vh); opacity: 0.4; }
+}
+
+@keyframes float-up {
+  0%   { transform: translateY(0) scale(1); opacity: 0.6; }
+  100% { transform: translateY(-120px) scale(0.5); opacity: 0; }
+}
+
+.animate-pulse-glow { animation: pulse-glow 3s ease-in-out infinite; }
+.animate-float-up   { animation: float-up 4s ease-out infinite; }

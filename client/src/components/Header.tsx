@@ -1,6 +1,6 @@
 import { useUserStats } from "@/hooks/use-gamification";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2, Zap, Trophy, Flame } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 
 export function Header() {
@@ -9,64 +9,164 @@ export function Header() {
 
   if (isLoading || !stats) {
     return (
-      <header className="h-16 border-b border-border/50 bg-background/50 backdrop-blur-sm flex items-center px-6">
-        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      <header
+        className="h-14 flex items-center px-6"
+        style={{
+          background: "rgba(4,7,18,0.95)",
+          borderBottom: "1px solid rgba(99,102,241,0.15)",
+        }}
+      >
+        <Loader2 className="w-4 h-4 animate-spin" style={{ color: "rgba(99,102,241,0.5)" }} />
       </header>
     );
   }
 
-  // Calculate XP progress (simple logic: next level = level * 100)
   const xpForNextLevel = stats.level * 100;
   const progress = Math.min(100, (stats.xp / xpForNextLevel) * 100);
 
+  const rankThresholds = [
+    { rank: "E", min: 1 }, { rank: "D", min: 5 }, { rank: "C", min: 10 },
+    { rank: "B", min: 20 }, { rank: "A", min: 35 }, { rank: "S", min: 50 }, { rank: "SS", min: 75 },
+  ];
+  const rank = [...rankThresholds].reverse().find((r) => stats.level >= r.min)?.rank ?? "E";
+
   return (
-    <header className="h-auto md:h-20 border-b border-border/50 bg-background/50 backdrop-blur-sm flex flex-col md:flex-row items-start md:items-center justify-between px-6 py-4 gap-4 sticky top-0 z-40">
-      <div className="flex items-center gap-4">
-        <div className="relative">
-          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-bold font-display text-lg shadow-lg shadow-primary/20">
+    <header
+      className="flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-6 px-5 py-3 sticky top-0 z-40"
+      style={{
+        background: "rgba(4,7,18,0.95)",
+        borderBottom: "1px solid rgba(99,102,241,0.15)",
+        backdropFilter: "blur(20px)",
+      }}
+    >
+      {/* ── Player info ── */}
+      <div className="flex items-center gap-4 flex-1 min-w-0">
+        {/* Level orb */}
+        <div className="relative flex-shrink-0">
+          <div
+            className="w-11 h-11 flex items-center justify-center text-lg font-bold"
+            style={{
+              fontFamily: "var(--font-mono)",
+              background: "radial-gradient(circle at 35% 35%, rgba(129,140,248,0.2), rgba(99,102,241,0.05))",
+              border: "1px solid rgba(99,102,241,0.5)",
+              borderRadius: "4px",
+              color: "rgba(165,180,252,1)",
+              boxShadow: "0 0 16px rgba(99,102,241,0.25), inset 0 1px 0 rgba(255,255,255,0.05)",
+            }}
+          >
             {stats.level}
           </div>
-          <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-0.5">
-            <div className="w-4 h-4 md:w-5 md:h-5 rounded-full bg-yellow-500 flex items-center justify-center text-[10px] text-black font-bold">
-              ★
-            </div>
+          {/* Rank badge */}
+          <div
+            className="absolute -bottom-1.5 -right-1.5 w-5 h-5 flex items-center justify-center text-[9px] font-bold"
+            style={{
+              fontFamily: "var(--font-mono)",
+              background: "rgba(4,7,18,0.95)",
+              border: "1px solid rgba(99,102,241,0.6)",
+              borderRadius: "2px",
+              color: "rgba(165,180,252,1)",
+              boxShadow: "0 0 8px rgba(99,102,241,0.3)",
+            }}
+          >
+            {rank}
           </div>
         </div>
-        
-        <div className="flex flex-col">
-          <h2 className="font-bold text-sm md:text-base leading-none">
-            {user?.firstName ? `${user.firstName}'s Journey` : 'Hero Journey'}
-          </h2>
-          <div className="flex items-center gap-2 mt-1.5">
-            <div className="h-2 w-24 md:w-48 bg-secondary rounded-full overflow-hidden">
-              <motion.div 
-                className="h-full bg-gradient-to-r from-emerald-500 to-green-400"
+
+        {/* Name + XP bar */}
+        <div className="flex flex-col gap-1 min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span
+              className="text-sm font-semibold truncate"
+              style={{ color: "rgba(199,210,254,0.9)", fontFamily: "var(--font-display)" }}
+            >
+              {user?.firstName ? `${user.firstName} Sama` : "Rushik Sama"}
+            </span>
+            <span
+              className="hidden md:inline-block hud-label"
+              style={{ color: "rgba(99,102,241,0.4)", fontSize: "0.55rem" }}
+            >
+              / SHADOW PLAYER
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* XP bar */}
+            <div
+              className="h-1.5 rounded-sm overflow-hidden flex-1 max-w-[180px]"
+              style={{
+                background: "rgba(99,102,241,0.1)",
+                border: "1px solid rgba(99,102,241,0.15)",
+              }}
+            >
+              <motion.div
+                className="h-full"
                 initial={{ width: 0 }}
                 animate={{ width: `${progress}%` }}
-                transition={{ duration: 1, ease: "easeOut" }}
+                transition={{ duration: 1.2, ease: "easeOut" }}
+                style={{
+                  background: "linear-gradient(90deg, rgba(99,102,241,0.8), rgba(129,140,248,1))",
+                  boxShadow: "0 0 8px rgba(99,102,241,0.6)",
+                }}
               />
             </div>
-            <span className="text-xs text-muted-foreground font-mono">
+            <span
+              className="text-[10px] whitespace-nowrap"
+              style={{ fontFamily: "var(--font-mono)", color: "rgba(99,102,241,0.55)" }}
+            >
               {stats.xp}/{xpForNextLevel} XP
             </span>
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/20 rounded-full text-yellow-500 text-sm font-medium whitespace-nowrap">
-          <Trophy className="w-4 h-4" />
-          <span>{stats.points} Gold</span>
-        </div>
-        
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-full text-orange-500 text-sm font-medium whitespace-nowrap">
-          <Flame className="w-4 h-4" />
-          <span>{stats.streak} Day Streak</span>
+      {/* ── Stat chips ── */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-0.5 md:pb-0 w-full md:w-auto">
+        {/* Gold */}
+        <div
+          className="flex items-center gap-1.5 px-3 py-1.5 whitespace-nowrap flex-shrink-0"
+          style={{
+            background: "rgba(234,179,8,0.06)",
+            border: "1px solid rgba(234,179,8,0.2)",
+            borderRadius: "3px",
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.72rem",
+            color: "rgba(234,179,8,0.9)",
+          }}
+        >
+          <span style={{ fontSize: "0.65rem", opacity: 0.6 }}>◆</span>
+          <span>{stats.points.toLocaleString()} G</span>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-500 text-sm font-medium whitespace-nowrap">
-          <Zap className="w-4 h-4" />
-          <span>Active</span>
+        {/* Streak */}
+        <div
+          className="flex items-center gap-1.5 px-3 py-1.5 whitespace-nowrap flex-shrink-0"
+          style={{
+            background: "rgba(249,115,22,0.06)",
+            border: "1px solid rgba(249,115,22,0.2)",
+            borderRadius: "3px",
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.72rem",
+            color: "rgba(249,115,22,0.9)",
+          }}
+        >
+          <span style={{ fontSize: "0.65rem", opacity: 0.6 }}>🔥</span>
+          <span>{stats.streak}D</span>
+        </div>
+
+        {/* Status online */}
+        <div
+          className="flex items-center gap-1.5 px-3 py-1.5 whitespace-nowrap flex-shrink-0"
+          style={{
+            background: "rgba(74,222,128,0.05)",
+            border: "1px solid rgba(74,222,128,0.18)",
+            borderRadius: "3px",
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.72rem",
+            color: "rgba(74,222,128,0.8)",
+          }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
+          <span>ONLINE</span>
         </div>
       </div>
     </header>
