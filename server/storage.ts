@@ -1,8 +1,8 @@
 import { db } from "./db";
 import {
   users, userStats, tasks, shopItems, inventory, scheduleItems, diaryEntries,
-  aiChatMessages, conversations, messages, bodyFatScans, progressTimers,
-  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer,
+  aiChatMessages, conversations, messages, bodyFatScans, progressTimers, userAchievements,
+  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement,
   type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertBodyFatScan
 } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -59,6 +59,10 @@ export interface IStorage {
   createTimer(userId: string, endTime: Date, startLevel: number): Promise<ProgressTimer>;
   cancelTimer(userId: string): Promise<void>;
   triggerTimer(userId: string): Promise<void>;
+
+  // Achievements
+  getUnlockedAchievements(userId: string): Promise<UserAchievement[]>;
+  unlockAchievement(userId: string, achievementId: string): Promise<UserAchievement>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -280,6 +284,19 @@ export class DatabaseStorage implements IStorage {
     await db.update(userStats)
       .set({ level: 1, xp: 0, points: 0, streak: 0 })
       .where(eq(userStats.userId, userId));
+  }
+
+  async getUnlockedAchievements(userId: string): Promise<UserAchievement[]> {
+    return await db.select().from(userAchievements)
+      .where(eq(userAchievements.userId, userId))
+      .orderBy(desc(userAchievements.unlockedAt));
+  }
+
+  async unlockAchievement(userId: string, achievementId: string): Promise<UserAchievement> {
+    const [record] = await db.insert(userAchievements)
+      .values({ userId, achievementId })
+      .returning();
+    return record;
   }
 }
 

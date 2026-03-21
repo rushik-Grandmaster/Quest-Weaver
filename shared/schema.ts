@@ -146,6 +146,13 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const userAchievements = pgTable("user_achievements", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  achievementId: text("achievement_id").notNull(),
+  unlockedAt: timestamp("unlocked_at").defaultNow().notNull(),
+});
+
 export const progressTimers = pgTable("progress_timers", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id),
@@ -171,6 +178,10 @@ export const aiChatMessagesRelations = relations(aiChatMessages, ({ one }) => ({
     fields: [aiChatMessages.userId],
     references: [users.id],
   }),
+}));
+
+export const userAchievementsRelations = relations(userAchievements, ({ one }) => ({
+  user: one(users, { fields: [userAchievements.userId], references: [users.id] }),
 }));
 
 export const progressTimersRelations = relations(progressTimers, ({ one }) => ({
@@ -212,6 +223,7 @@ export type ScheduleItem = typeof scheduleItems.$inferSelect;
 export type DiaryEntry = typeof diaryEntries.$inferSelect;
 export type BodyFatScan = typeof bodyFatScans.$inferSelect;
 export type ProgressTimer = typeof progressTimers.$inferSelect;
+export type UserAchievement = typeof userAchievements.$inferSelect;
 
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type InsertShopItem = z.infer<typeof insertShopItemSchema>;

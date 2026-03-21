@@ -4,9 +4,10 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
-
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { registerImageRoutes } from "./replit_integrations/image";
+import { checkAndAwardAchievements } from "./checkAchievements";
+import { ACHIEVEMENTS } from "@shared/achievements";
 import OpenAI from "openai";
 
 const openai = new OpenAI({
@@ -126,7 +127,14 @@ export async function registerRoutes(
       level
     });
 
-    res.json({ task: updatedTask, stats: updatedStats, leveledUp });
+    // Check achievements after task completion + level up
+    const newAchievements = await checkAndAwardAchievements(userId, {
+      type: leveledUp ? "level_up" : "task_complete",
+      newLevel: level,
+      taskDifficulty: task.difficulty,
+    });
+
+    res.json({ task: updatedTask, stats: updatedStats, leveledUp, newAchievements });
   });
 
   // Shop
@@ -169,7 +177,10 @@ export async function registerRoutes(
     const updatedStats = await storage.updateUserStats(userId, { points: newPoints });
     const inventoryItem = await storage.addToInventory(userId, item.id);
 
-    res.json({ item: inventoryItem, stats: updatedStats });
+    // Check shop achievements
+    const newAchievements = await checkAndAwardAchievements(userId, { type: "shop_purchase" });
+
+    res.json({ item: inventoryItem, stats: updatedStats, newAchievements });
   });
 
   // Inventory
@@ -255,7 +266,9 @@ export async function registerRoutes(
         userId: req.user.claims.sub
       };
       const entry = await storage.createDiaryEntry(input as any);
-      res.status(201).json(entry);
+      // Check diary achievements
+      const newAchievements = await checkAndAwardAchievements(req.user.claims.sub, { type: "diary_entry" });
+      res.status(201).json({ ...entry, newAchievements });
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
@@ -544,11 +557,26 @@ export async function registerRoutes(
         estimatedBodyFat: result.bodyFat
       });
 
-      res.json({ ...result, id: scan.id });
+      // Check health achievements
+      const newAchievements = await checkAndAwardAchievements(req.user.claims.sub, { type: "body_fat_scan" });
+      res.json({ ...result, id: scan.id, newAchievements });
     } catch (err) {
       console.error("Body fat analysis error:", err);
       res.status(500).json({ message: "Analysis failed" });
     }
+  });
+
+  // Achievements
+  app.get("/api/achievements", requireAuth, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const unlocked = await storage.getUnlockedAchievements(userId);
+    const unlockedMap = new Set(unlocked.map((a) => a.achievementId));
+    const result = ACHIEVEMENTS.map((a) => ({
+      ...a,
+      unlocked: unlockedMap.has(a.id),
+      unlockedAt: unlocked.find((u) => u.achievementId === a.id)?.unlockedAt ?? null,
+    }));
+    res.json(result);
   });
 
   // Progress Timer
