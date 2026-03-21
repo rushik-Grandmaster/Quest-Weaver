@@ -341,10 +341,12 @@ export default function Luminous() {
                       </div>
                       <div className="grid grid-cols-2 gap-2 max-w-sm w-full">
                         {[
-                          "Add a daily workout quest",
-                          "What should I eat today?",
-                          "Schedule study time for tomorrow",
-                          "Analyze my progress"
+                          "Analyze my progress",
+                          "What quests should I focus on?",
+                          "How close am I to leveling up?",
+                          "Review my achievements",
+                          "What did I use from my inventory?",
+                          "Give me a motivational push"
                         ].map((suggestion) => (
                           <button
                             key={suggestion}

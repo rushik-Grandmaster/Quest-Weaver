@@ -363,11 +363,65 @@ export async function registerRoutes(
         content: m.content
       }));
 
-      // Get body fat scan history for context
-      const bodyFatScans = await storage.getBodyFatScans(userId);
-      const healthContext = bodyFatScans.length > 0 
-        ? `\n\nRecent Body Fat Scans:\n${bodyFatScans.slice(0, 3).map(s => `- ${s.createdAt.toLocaleDateString()}: ${s.estimatedBodyFat}% body fat (Height: ${s.height}cm, Weight: ${s.weight}kg)`).join('\n')}`
-        : "";
+      // ── Fetch all player data for Luminous context ──
+      const [playerStats, allTasks, inventoryItems, unlockedAchievements, diaryEntries, scheduleItems, bodyFatScans] = await Promise.all([
+        storage.getUserStats(userId),
+        storage.getTasks(userId),
+        storage.getInventory(userId),
+        storage.getUnlockedAchievements(userId),
+        storage.getDiaryEntries(userId),
+        storage.getScheduleItems(userId),
+        storage.getBodyFatScans(userId),
+      ]);
+
+      const completedTasks = allTasks.filter(t => t.isCompleted);
+      const pendingTasks   = allTasks.filter(t => !t.isCompleted);
+      const usedItems      = inventoryItems.filter(i => i.isUsed);
+      const ownedItems     = inventoryItems.filter(i => !i.isUsed);
+
+      const rankThresholds = [
+        { rank: "E", min: 1 }, { rank: "D", min: 5 }, { rank: "C", min: 10 },
+        { rank: "B", min: 20 }, { rank: "A", min: 35 }, { rank: "S", min: 50 }, { rank: "SS", min: 75 },
+      ];
+      const currentLevel = playerStats?.level ?? 1;
+      const currentRank = [...rankThresholds].reverse().find(r => currentLevel >= r.min)?.rank ?? "E";
+      const xpForNext = currentLevel * 100;
+
+      const playerContext = `
+═══════════════════════════════════════
+RUSHIK SAMA'S PLAYER DATA (Live)
+═══════════════════════════════════════
+
+STATS:
+- Rank: ${currentRank} | Level: ${currentLevel}
+- XP: ${playerStats?.xp ?? 0} / ${xpForNext} (next level)
+- Gold: ${playerStats?.points ?? 0}
+- Login Streak: ${playerStats?.streak ?? 0} days
+
+QUESTS:
+- Total quests: ${allTasks.length}
+- Completed: ${completedTasks.length} (${completedTasks.map(t => `"${t.title}" [${t.category}, ${t.difficulty}]`).join(", ") || "none"})
+- Pending: ${pendingTasks.length} (${pendingTasks.map(t => `"${t.title}" [${t.category}, ${t.difficulty}]`).join(", ") || "none"})
+
+INVENTORY:
+- Items owned (unused): ${ownedItems.length > 0 ? ownedItems.map(i => `"${i.item.name}"`).join(", ") : "none"}
+- Items used: ${usedItems.length > 0 ? usedItems.map(i => `"${i.item.name}" (used ${i.usedAt ? new Date(i.usedAt).toLocaleDateString() : "recently"})`).join(", ") : "none"}
+
+ACHIEVEMENTS UNLOCKED (${unlockedAchievements.length}):
+${unlockedAchievements.length > 0 ? unlockedAchievements.map(a => `- ${a.achievementId}`).join("\n") : "- None yet"}
+
+RECENT DIARY ENTRIES (last 3):
+${diaryEntries.slice(0, 3).map(e => `- ${new Date(e.createdAt).toLocaleDateString()}: "${e.title}" (mood: ${e.mood ?? "not set"})`).join("\n") || "- No diary entries yet"}
+
+UPCOMING SCHEDULE (next 5):
+${scheduleItems.slice(0, 5).map(s => `- ${new Date(s.startTime).toLocaleDateString()} ${new Date(s.startTime).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}: "${s.title}"`).join("\n") || "- No scheduled events"}
+
+BODY SCANS (last 3):
+${bodyFatScans.slice(0, 3).map(s => `- ${new Date(s.createdAt).toLocaleDateString()}: ${s.estimatedBodyFat}% body fat (${s.height}cm, ${s.weight}kg)`).join("\n") || "- No scans yet"}
+
+═══════════════════════════════════════
+Use this data to give highly personalized advice, celebrate progress, and help Rushik Sama level up in real life.
+═══════════════════════════════════════`;
 
       const tools = [
         {
@@ -455,7 +509,7 @@ export async function registerRoutes(
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: "You are Luminous, an advanced AI life coach. You help users manage their life as an RPG. You have access to tools to manage their tasks (quests), shop, and schedule. Always refer to the user as Rushik Sama. When a user asks you to add or remove items, quests, or schedule events, use the appropriate tool. Always confirm the action in your response. For scheduling, ensure you use ISO 8601 date strings for startTime and endTime." + healthContext },
+          { role: "system", content: `You are Luminous, an advanced AI life coach and shadow system assistant for LifeRPG. You help Rushik Sama manage their life as an RPG. You have full real-time access to their player data — always use it to give deeply personalized, specific, and motivating responses. You have tools to create/delete tasks, shop items, and schedule events. Always refer to the user as "Rushik Sama". When asked about their progress, quests, inventory, achievements, or body stats, use the data below to give accurate, insightful answers. Never say you don't have access to their data. Celebrate wins, notice patterns, and push them forward like a true mentor.${playerContext}` },
           ...chatHistory,
           { role: "user", content: message }
         ],
