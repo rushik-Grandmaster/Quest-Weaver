@@ -1,8 +1,8 @@
 import { db } from "./db";
 import {
   users, userStats, tasks, shopItems, inventory, scheduleItems, diaryEntries,
-  aiChatMessages, conversations, messages, bodyFatScans,
-  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan,
+  aiChatMessages, conversations, messages, bodyFatScans, progressTimers,
+  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer,
   type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertBodyFatScan
 } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -53,6 +53,12 @@ export interface IStorage {
   // Body Fat
   saveBodyFatScan(scan: InsertBodyFatScan): Promise<BodyFatScan>;
   getBodyFatScans(userId: string): Promise<BodyFatScan[]>;
+
+  // Progress Timer
+  getActiveTimer(userId: string): Promise<ProgressTimer | undefined>;
+  createTimer(userId: string, endTime: Date, startLevel: number): Promise<ProgressTimer>;
+  cancelTimer(userId: string): Promise<void>;
+  triggerTimer(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -231,6 +237,49 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(bodyFatScans)
       .where(eq(bodyFatScans.userId, userId))
       .orderBy(desc(bodyFatScans.createdAt));
+  }
+
+  async getActiveTimer(userId: string): Promise<ProgressTimer | undefined> {
+    const [timer] = await db.select().from(progressTimers)
+      .where(and(eq(progressTimers.userId, userId), eq(progressTimers.isActive, true)))
+      .orderBy(desc(progressTimers.createdAt))
+      .limit(1);
+    return timer;
+  }
+
+  async createTimer(userId: string, endTime: Date, startLevel: number): Promise<ProgressTimer> {
+    // Cancel any existing active timer first
+    await db.update(progressTimers)
+      .set({ isActive: false })
+      .where(and(eq(progressTimers.userId, userId), eq(progressTimers.isActive, true)));
+
+    const [timer] = await db.insert(progressTimers).values({
+      userId,
+      startTime: new Date(),
+      endTime,
+      startLevel,
+      isActive: true,
+      wasTriggered: false,
+    }).returning();
+    return timer;
+  }
+
+  async cancelTimer(userId: string): Promise<void> {
+    await db.update(progressTimers)
+      .set({ isActive: false })
+      .where(and(eq(progressTimers.userId, userId), eq(progressTimers.isActive, true)));
+  }
+
+  async triggerTimer(userId: string): Promise<void> {
+    // Mark triggered, deactivate
+    await db.update(progressTimers)
+      .set({ isActive: false, wasTriggered: true })
+      .where(and(eq(progressTimers.userId, userId), eq(progressTimers.isActive, true)));
+
+    // Reset ALL user progress
+    await db.update(userStats)
+      .set({ level: 1, xp: 0, points: 0, streak: 0 })
+      .where(eq(userStats.userId, userId));
   }
 }
 

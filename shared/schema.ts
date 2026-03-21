@@ -146,6 +146,17 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const progressTimers = pgTable("progress_timers", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  startLevel: integer("start_level").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  wasTriggered: boolean("was_triggered").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const aiChatMessages = pgTable("ai_chat_messages", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id),
@@ -160,6 +171,10 @@ export const aiChatMessagesRelations = relations(aiChatMessages, ({ one }) => ({
     fields: [aiChatMessages.userId],
     references: [users.id],
   }),
+}));
+
+export const progressTimersRelations = relations(progressTimers, ({ one }) => ({
+  user: one(users, { fields: [progressTimers.userId], references: [users.id] }),
 }));
 
 // === ZOD SCHEMAS ===
@@ -196,6 +211,7 @@ export type InventoryItem = typeof inventory.$inferSelect;
 export type ScheduleItem = typeof scheduleItems.$inferSelect;
 export type DiaryEntry = typeof diaryEntries.$inferSelect;
 export type BodyFatScan = typeof bodyFatScans.$inferSelect;
+export type ProgressTimer = typeof progressTimers.$inferSelect;
 
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type InsertShopItem = z.infer<typeof insertShopItemSchema>;

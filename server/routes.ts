@@ -551,6 +551,52 @@ export async function registerRoutes(
     }
   });
 
+  // Progress Timer
+  app.get("/api/timer", requireAuth, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const timer = await storage.getActiveTimer(userId);
+    res.json(timer || null);
+  });
+
+  app.post("/api/timer", requireAuth, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const { durationMs } = req.body;
+    if (!durationMs || durationMs <= 0) {
+      return res.status(400).json({ message: "Invalid duration" });
+    }
+    let stats = await storage.getUserStats(userId);
+    if (!stats) stats = await storage.createUserStats(userId);
+    const endTime = new Date(Date.now() + durationMs);
+    const timer = await storage.createTimer(userId, endTime, stats.level);
+    res.status(201).json(timer);
+  });
+
+  app.delete("/api/timer", requireAuth, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    await storage.cancelTimer(userId);
+    res.status(204).end();
+  });
+
+  app.post("/api/timer/check", requireAuth, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const timer = await storage.getActiveTimer(userId);
+    if (!timer) return res.json({ status: "no_timer" });
+
+    const now = new Date();
+    if (now < timer.endTime) return res.json({ status: "active", timer });
+
+    // Timer expired — check if leveled up
+    const stats = await storage.getUserStats(userId);
+    if (!stats || stats.level <= timer.startLevel) {
+      await storage.triggerTimer(userId);
+      return res.json({ status: "expired_reset", message: "Progress has been reset." });
+    } else {
+      // Level gained — cancel timer safely (no reset)
+      await storage.cancelTimer(userId);
+      return res.json({ status: "expired_safe", message: "You leveled up in time! Progress saved." });
+    }
+  });
+
   app.post("/api/ai/lens", requireAuth, async (req: any, res) => {
     try {
       const { image } = req.body;

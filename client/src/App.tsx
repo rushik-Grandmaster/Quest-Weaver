@@ -21,6 +21,7 @@ import Diary from "@/pages/Diary";
 import Luminous from "@/pages/Luminous";
 import LuminousLens from "@/pages/LuminousLens";
 import Streaks from "@/pages/Streaks";
+import CountdownTimer from "@/pages/CountdownTimer";
 import BodyFatAnalysis from "@/pages/BodyFatAnalysis";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
@@ -88,6 +89,7 @@ function Router() {
         <Route path="/lens" component={LuminousLens} />
         <Route path="/streaks" component={Streaks} />
         <Route path="/body-fat" component={BodyFatAnalysis} />
+        <Route path="/timer" component={CountdownTimer} />
         <Route component={NotFound} />
       </Switch>
     </PrivateLayout>
