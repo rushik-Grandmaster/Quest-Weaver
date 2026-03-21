@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl } from "@shared/routes";
+import { api } from "@shared/routes";
 import type { UserStats } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { emitLevelUp, getRank, getPrevRank } from "@/components/LevelUpCeremony";
 
 export function useUserStats() {
   return useQuery({
@@ -15,27 +16,24 @@ export function useUserStats() {
   });
 }
 
-// Helper to handle gamification events (level up, point gain)
 export function useGamificationEffects() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const handleSuccess = (data: { stats: UserStats, leveledUp?: boolean }, action: string) => {
-    // Invalidate stats to update header
+  const handleSuccess = (data: { stats: UserStats; leveledUp?: boolean }, action: string) => {
     queryClient.invalidateQueries({ queryKey: [api.userStats.get.path] });
-    
+
     if (data.leveledUp) {
-      toast({
-        title: "LEVEL UP! 🎉",
-        description: `Congratulations! You reached Level ${data.stats.level}!`,
-        className: "bg-gradient-to-r from-yellow-500 to-amber-600 border-none text-black font-bold",
-        duration: 5000,
+      emitLevelUp({
+        level: data.stats.level,
+        rank: getRank(data.stats.level),
+        prevRank: getPrevRank(data.stats.level),
       });
     } else {
       toast({
         title: action,
-        description: `Current XP: ${data.stats.xp} | Points: ${data.stats.points}`,
-        className: "bg-card border-accent/20 text-foreground",
+        description: `+XP earned · Gold: ${data.stats.points}`,
+        className: "bg-card border-primary/20 text-foreground",
       });
     }
   };
