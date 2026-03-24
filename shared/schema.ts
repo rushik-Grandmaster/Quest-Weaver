@@ -164,19 +164,37 @@ export const progressTimers = pgTable("progress_timers", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const chatSessions = pgTable("chat_sessions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  title: text("title").notNull().default("New Conversation"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const aiChatMessages = pgTable("ai_chat_messages", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id),
+  sessionId: integer("session_id").references(() => chatSessions.id, { onDelete: "cascade" }),
   role: text("role").notNull(), // 'user', 'assistant'
   content: text("content").notNull(),
   type: text("type").default("text"), // 'text', 'image_url'
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => ({
+  user: one(users, { fields: [chatSessions.userId], references: [users.id] }),
+  messages: many(aiChatMessages),
+}));
+
 export const aiChatMessagesRelations = relations(aiChatMessages, ({ one }) => ({
   user: one(users, {
     fields: [aiChatMessages.userId],
     references: [users.id],
+  }),
+  session: one(chatSessions, {
+    fields: [aiChatMessages.sessionId],
+    references: [chatSessions.id],
   }),
 }));
 
@@ -224,6 +242,8 @@ export type DiaryEntry = typeof diaryEntries.$inferSelect;
 export type BodyFatScan = typeof bodyFatScans.$inferSelect;
 export type ProgressTimer = typeof progressTimers.$inferSelect;
 export type UserAchievement = typeof userAchievements.$inferSelect;
+export type ChatSession = typeof chatSessions.$inferSelect;
+export type AiChatMessage = typeof aiChatMessages.$inferSelect;
 
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type InsertShopItem = z.infer<typeof insertShopItemSchema>;

@@ -323,9 +323,53 @@ export async function registerRoutes(
     }
   });
 
+  // ── Chat Session Routes ──
+  app.post("/api/ai/sessions", requireAuth, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const { title = "New Conversation" } = req.body;
+    try {
+      const session = await storage.createChatSession(userId, title);
+      res.json(session);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to create session" });
+    }
+  });
+
+  app.get("/api/ai/sessions", requireAuth, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    try {
+      const sessions = await storage.getChatSessions(userId);
+      res.json(sessions);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to fetch sessions" });
+    }
+  });
+
+  app.get("/api/ai/sessions/:id/messages", requireAuth, async (req: any, res) => {
+    const sessionId = parseInt(req.params.id);
+    if (isNaN(sessionId)) return res.status(400).json({ message: "Invalid session id" });
+    try {
+      const msgs = await storage.getSessionMessages(sessionId);
+      res.json(msgs);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  app.delete("/api/ai/sessions/:id", requireAuth, async (req: any, res) => {
+    const sessionId = parseInt(req.params.id);
+    if (isNaN(sessionId)) return res.status(400).json({ message: "Invalid session id" });
+    try {
+      await storage.deleteSession(sessionId);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to delete session" });
+    }
+  });
+
   app.post(api.ai.chat.path, requireAuth, async (req: any, res) => {
     const userId = req.user.claims.sub;
-    const { message, history = [] } = req.body;
+    const { message, history = [], sessionId } = req.body;
 
     try {
       // Save user message
@@ -333,8 +377,18 @@ export async function registerRoutes(
         userId,
         role: "user",
         content: message,
-        type: "text"
+        type: "text",
+        sessionId: sessionId ?? null,
       });
+
+      // Auto-title session from first message
+      if (sessionId && message.length > 0) {
+        const existingMsgs = await storage.getSessionMessages(sessionId);
+        if (existingMsgs.length === 1) {
+          const shortTitle = message.slice(0, 60) + (message.length > 60 ? "…" : "");
+          await storage.updateSessionTitle(sessionId, shortTitle);
+        }
+      }
 
       // Simple keyword detection for image generation
       if (message.toLowerCase().includes("generate image") || message.toLowerCase().includes("draw")) {
@@ -357,11 +411,15 @@ export async function registerRoutes(
         return res.json({ message: aiMessage.content, type: "image", data: imageUrl });
       }
 
-      // Default Chat response
-      const chatHistory = history.map((m: any) => ({
-        role: m.role,
-        content: m.content
-      }));
+      // Default Chat response — load persistent memory from DB when session exists
+      let chatHistory: { role: string; content: string }[];
+      if (sessionId) {
+        const dbMessages = await storage.getSessionMessages(sessionId);
+        // Use last 30 messages (excluding the one we just saved) as full history
+        chatHistory = dbMessages.slice(-31, -1).map(m => ({ role: m.role, content: m.content }));
+      } else {
+        chatHistory = history.map((m: any) => ({ role: m.role, content: m.content }));
+      }
 
       // ── Fetch all player data for Luminous context ──
       const [playerStats, allTasks, inventoryItems, unlockedAchievements, diaryEntries, scheduleItems, bodyFatScans] = await Promise.all([
@@ -564,12 +622,12 @@ Use this data to give highly personalized advice, celebrate progress, and help R
         });
 
         const aiContent = finalCompletion.choices[0].message.content || "I've processed your request.";
-        await storage.saveAiMessage({ userId, role: "assistant", content: aiContent, type: "text" });
+        await storage.saveAiMessage({ userId, role: "assistant", content: aiContent, type: "text", sessionId: sessionId ?? null });
         return res.json({ message: aiContent, type: "text" });
       }
 
       const aiContent = responseMessage.content || "I'm sorry, I couldn't process that.";
-      await storage.saveAiMessage({ userId, role: "assistant", content: aiContent, type: "text" });
+      await storage.saveAiMessage({ userId, role: "assistant", content: aiContent, type: "text", sessionId: sessionId ?? null });
       res.json({ message: aiContent, type: "text" });
     } catch (err) {
       console.error("AI Chat error:", err);

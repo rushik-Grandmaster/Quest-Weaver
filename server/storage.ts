@@ -2,10 +2,11 @@ import { db } from "./db";
 import {
   users, userStats, tasks, shopItems, inventory, scheduleItems, diaryEntries,
   aiChatMessages, conversations, messages, bodyFatScans, progressTimers, userAchievements,
-  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement,
+  chatSessions,
+  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement, type ChatSession, type AiChatMessage,
   type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertBodyFatScan
 } from "@shared/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, asc } from "drizzle-orm";
 
 export interface IStorage {
   // User Stats
@@ -46,7 +47,12 @@ export interface IStorage {
   updateDiaryEntry(id: number, updates: Partial<DiaryEntry>): Promise<DiaryEntry>;
   deleteDiaryEntry(id: number): Promise<void>;
   
-  // AI Chat
+  // AI Chat Sessions
+  createChatSession(userId: string, title: string): Promise<ChatSession>;
+  getChatSessions(userId: string): Promise<ChatSession[]>;
+  getSessionMessages(sessionId: number): Promise<AiChatMessage[]>;
+  updateSessionTitle(sessionId: number, title: string): Promise<void>;
+  deleteSession(sessionId: number): Promise<void>;
   getAiHistory(userId: string): Promise<any[]>;
   saveAiMessage(message: any): Promise<any>;
   
@@ -221,6 +227,33 @@ export class DatabaseStorage implements IStorage {
     await db.delete(diaryEntries).where(eq(diaryEntries.id, id));
   }
 
+  async createChatSession(userId: string, title: string): Promise<ChatSession> {
+    const [session] = await db.insert(chatSessions).values({ userId, title }).returning();
+    return session;
+  }
+
+  async getChatSessions(userId: string): Promise<ChatSession[]> {
+    return await db.select().from(chatSessions)
+      .where(eq(chatSessions.userId, userId))
+      .orderBy(desc(chatSessions.updatedAt));
+  }
+
+  async getSessionMessages(sessionId: number): Promise<AiChatMessage[]> {
+    return await db.select().from(aiChatMessages)
+      .where(eq(aiChatMessages.sessionId, sessionId))
+      .orderBy(asc(aiChatMessages.createdAt));
+  }
+
+  async updateSessionTitle(sessionId: number, title: string): Promise<void> {
+    await db.update(chatSessions)
+      .set({ title, updatedAt: new Date() })
+      .where(eq(chatSessions.id, sessionId));
+  }
+
+  async deleteSession(sessionId: number): Promise<void> {
+    await db.delete(chatSessions).where(eq(chatSessions.id, sessionId));
+  }
+
   async getAiHistory(userId: string): Promise<any[]> {
     return await db.select().from(aiChatMessages)
       .where(eq(aiChatMessages.userId, userId))
@@ -229,6 +262,12 @@ export class DatabaseStorage implements IStorage {
 
   async saveAiMessage(message: any): Promise<any> {
     const [saved] = await db.insert(aiChatMessages).values(message).returning();
+    // Bump session updatedAt
+    if (message.sessionId) {
+      await db.update(chatSessions)
+        .set({ updatedAt: new Date() })
+        .where(eq(chatSessions.id, message.sessionId));
+    }
     return saved;
   }
 
