@@ -24,6 +24,7 @@ import Streaks from "@/pages/Streaks";
 import CountdownTimer from "@/pages/CountdownTimer";
 import Achievements from "@/pages/Achievements";
 import BodyFatAnalysis from "@/pages/BodyFatAnalysis";
+import Ranks from "@/pages/Ranks";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 
@@ -100,6 +101,7 @@ function Router() {
         <Route path="/body-fat" component={BodyFatAnalysis} />
         <Route path="/timer" component={CountdownTimer} />
         <Route path="/achievements" component={Achievements} />
+        <Route path="/ranks" component={Ranks} />
         <Route component={NotFound} />
       </Switch>
     </PrivateLayout>
