@@ -735,30 +735,42 @@ Use this data to give highly personalized advice, celebrate progress, and help R
     try {
       const { image } = req.body;
       if (!image) {
-        return res.status(400).json({ message: "Image is required" });
+        return res.status(400).json({ message: "No image provided." });
+      }
+      if (!image.startsWith("data:image/")) {
+        return res.status(400).json({ message: "Invalid image format. Please upload a JPEG or PNG." });
       }
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
+        max_tokens: 1024,
         messages: [
           {
             role: "system",
-            content: "You are Luminous Lens, a visual intelligence system. Analyze the provided image and provide detailed information about what you see. Identify objects, translate text, or provide historical/scientific context. Keep your response helpful, concise, and addressed to Rushik Sama."
+            content: "You are Luminous Lens, a visual intelligence system for Rushik Sama's LifeRPG. Analyze the provided image thoroughly. Identify objects, read text, describe scenes, estimate nutrition for food, or provide context. Be detailed yet concise. Address Rushik Sama directly."
           },
           {
             role: "user",
             content: [
-              { type: "text", text: "Analyze this image and tell me what you see, Rushik Sama." },
-              { type: "image_url", image_url: { url: image } }
-            ]
+              { type: "text", text: "Scan this image and tell me everything relevant about what you see." },
+              { type: "image_url", image_url: { url: image, detail: "high" } }
+            ] as any
           }
         ]
       });
 
-      res.json({ analysis: response.choices[0].message.content });
-    } catch (err) {
-      console.error("Luminous Lens error:", err);
-      res.status(500).json({ message: "Visual analysis failed" });
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        return res.status(500).json({ message: "Luminous returned an empty response. Please try again." });
+      }
+
+      res.json({ analysis: content });
+    } catch (err: any) {
+      console.error("Luminous Lens error:", err?.message ?? err);
+      const msg = err?.message?.includes("image")
+        ? "The image could not be processed. Try a different photo."
+        : "Visual analysis failed. Please try again.";
+      res.status(500).json({ message: msg });
     }
   });
 
