@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getRank as _getRank, getPrevRank as _getPrevRank } from "@shared/levels";
+
+export { _getRank as getRank, _getPrevRank as getPrevRank };
 
 type LevelUpEvent = { level: number; rank: string; prevRank: string };
 
@@ -16,22 +19,6 @@ export function subscribeToLevelUp(fn: (e: LevelUpEvent) => void) {
     const i = listeners.indexOf(fn);
     if (i > -1) listeners.splice(i, 1);
   };
-}
-
-const RANK_ORDER = ["E", "D", "C", "B", "A", "S", "SS"];
-
-export function getRank(level: number) {
-  if (level >= 75) return "SS";
-  if (level >= 50) return "S";
-  if (level >= 35) return "A";
-  if (level >= 20) return "B";
-  if (level >= 10) return "C";
-  if (level >= 5)  return "D";
-  return "E";
-}
-
-export function getPrevRank(level: number) {
-  return getRank(level - 1);
 }
 
 export function LevelUpCeremony() {

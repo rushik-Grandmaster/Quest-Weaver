@@ -27,6 +27,7 @@ export const tasks = pgTable("tasks", {
   rewardXp: integer("reward_xp").default(10).notNull(),
   rewardPoints: integer("reward_points").default(5).notNull(),
   dueDate: timestamp("due_date"),
+  lastCompletedAt: timestamp("last_completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

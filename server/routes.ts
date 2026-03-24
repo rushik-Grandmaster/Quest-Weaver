@@ -8,6 +8,7 @@ import { registerChatRoutes } from "./replit_integrations/chat";
 import { registerImageRoutes } from "./replit_integrations/image";
 import { checkAndAwardAchievements } from "./checkAchievements";
 import { ACHIEVEMENTS } from "@shared/achievements";
+import { applyXp, getRank, xpForLevel } from "@shared/levels";
 import OpenAI from "openai";
 
 const openai = new OpenAI({
@@ -45,10 +46,17 @@ export async function registerRoutes(
     res.json(stats);
   });
 
-  // Tasks
+  // Tasks — daily/habit tasks auto-reset each day
   app.get(api.tasks.list.path, requireAuth, async (req: any, res) => {
     const tasks = await storage.getTasks(req.user.claims.sub);
-    res.json(tasks);
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const result = tasks.map(t => {
+      if (t.category === "one_time") return t;
+      // For daily/habit tasks: treat as incomplete if not completed today
+      const completedToday = t.lastCompletedAt && new Date(t.lastCompletedAt) >= todayStart;
+      return { ...t, isCompleted: !!completedToday };
+    });
+    res.json(result);
   });
 
   app.post(api.tasks.create.path, requireAuth, async (req: any, res) => {
@@ -90,44 +98,34 @@ export async function registerRoutes(
   app.post(api.tasks.complete.path, requireAuth, async (req: any, res) => {
     const userId = req.user.claims.sub;
     const task = await storage.getTask(Number(req.params.id));
-    
+
     if (!task || task.userId !== userId) {
       return res.status(404).json({ message: "Task not found" });
     }
 
-    if (task.isCompleted) {
-       // Already completed
-       const stats = await storage.getUserStats(userId);
-       return res.json({ task, stats, leveledUp: false });
+    // Check if already completed today (for daily/habit) or permanently (for one_time)
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const alreadyDoneToday = task.lastCompletedAt && new Date(task.lastCompletedAt) >= todayStart;
+    if (task.category === "one_time" ? task.isCompleted : alreadyDoneToday) {
+      const stats = await storage.getUserStats(userId);
+      return res.json({ task, stats, leveledUp: false });
     }
 
-    // Mark complete
-    const updatedTask = await storage.updateTask(task.id, { isCompleted: true });
+    // Mark complete — daily/habit tasks only update lastCompletedAt (not isCompleted)
+    const taskUpdates: Record<string, any> = { lastCompletedAt: new Date() };
+    if (task.category === "one_time") taskUpdates.isCompleted = true;
+    const updatedTask = await storage.updateTask(task.id, taskUpdates);
 
-    // Award XP and Points
+    // Award XP and Points using shared applyXp (handles multi-level-up)
     let stats = await storage.getUserStats(userId);
     if (!stats) stats = await storage.createUserStats(userId);
 
-    let newXp = stats.xp + task.rewardXp;
-    let newPoints = stats.points + task.rewardPoints;
-    let level = stats.level;
-    let leveledUp = false;
+    const { level, xp, leveledUp } = applyXp(stats.level, stats.xp, task.rewardXp);
+    const newPoints = stats.points + task.rewardPoints;
 
-    // Simple level up logic: Level * 100 XP required
-    const xpRequired = level * 100;
-    if (newXp >= xpRequired) {
-      level += 1;
-      newXp -= xpRequired;
-      leveledUp = true;
-    }
+    const updatedStats = await storage.updateUserStats(userId, { xp, points: newPoints, level });
 
-    const updatedStats = await storage.updateUserStats(userId, {
-      xp: newXp,
-      points: newPoints,
-      level
-    });
-
-    // Check achievements after task completion + level up
+    // Check achievements
     const newAchievements = await checkAndAwardAchievements(userId, {
       type: leveledUp ? "level_up" : "task_complete",
       newLevel: level,
@@ -437,13 +435,9 @@ export async function registerRoutes(
       const usedItems      = inventoryItems.filter(i => i.isUsed);
       const ownedItems     = inventoryItems.filter(i => !i.isUsed);
 
-      const rankThresholds = [
-        { rank: "E", min: 1 }, { rank: "D", min: 5 }, { rank: "C", min: 10 },
-        { rank: "B", min: 20 }, { rank: "A", min: 35 }, { rank: "S", min: 50 }, { rank: "SS", min: 75 },
-      ];
       const currentLevel = playerStats?.level ?? 1;
-      const currentRank = [...rankThresholds].reverse().find(r => currentLevel >= r.min)?.rank ?? "E";
-      const xpForNext = currentLevel * 100;
+      const currentRank = getRank(currentLevel);
+      const xpForNext = xpForLevel(currentLevel);
 
       const playerContext = `
 ═══════════════════════════════════════

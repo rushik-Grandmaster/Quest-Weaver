@@ -4,6 +4,7 @@ import { Loader2, Circle, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { Link } from "wouter";
+import { getRank, xpForLevel } from "@shared/levels";
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -58,12 +59,8 @@ export default function Home() {
     );
   }
 
-  const rankThresholds = [
-    { rank: "E", min: 1 }, { rank: "D", min: 5 }, { rank: "C", min: 10 },
-    { rank: "B", min: 20 }, { rank: "A", min: 35 }, { rank: "S", min: 50 }, { rank: "SS", min: 75 },
-  ];
-  const rank = [...rankThresholds].reverse().find(r => stats && stats.level >= r.min)?.rank ?? "E";
-  const xpForNext = (stats?.level ?? 1) * 100;
+  const rank = getRank(stats?.level ?? 1);
+  const xpForNext = xpForLevel(stats?.level ?? 1);
   const xpProgress = Math.min(100, ((stats?.xp ?? 0) / xpForNext) * 100);
 
   return (

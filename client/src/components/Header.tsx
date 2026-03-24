@@ -2,6 +2,7 @@ import { useUserStats } from "@/hooks/use-gamification";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { getRank, xpForLevel } from "@shared/levels";
 
 export function Header() {
   const { data: stats, isLoading } = useUserStats();
@@ -21,14 +22,9 @@ export function Header() {
     );
   }
 
-  const xpForNextLevel = stats.level * 100;
+  const xpForNextLevel = xpForLevel(stats.level);
   const progress = Math.min(100, (stats.xp / xpForNextLevel) * 100);
-
-  const rankThresholds = [
-    { rank: "E", min: 1 }, { rank: "D", min: 5 }, { rank: "C", min: 10 },
-    { rank: "B", min: 20 }, { rank: "A", min: 35 }, { rank: "S", min: 50 }, { rank: "SS", min: 75 },
-  ];
-  const rank = [...rankThresholds].reverse().find((r) => stats.level >= r.min)?.rank ?? "E";
+  const rank = getRank(stats.level);
 
   return (
     <header
