@@ -12,6 +12,7 @@ import { Loader2, Plus, Filter, Trash2, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { useSound } from "@/hooks/use-sound";
+import { staggerContainer, staggerChild, EASE_OUT_EXPO } from "@/lib/animations";
 
 export default function Tasks() {
   const { data: tasks, isLoading } = useTasks();
@@ -61,15 +62,19 @@ export default function Tasks() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <motion.div
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        variants={staggerContainer}
+        initial="hidden"
+        animate="visible"
+      >
         <AnimatePresence mode="popLayout">
           {filteredTasks?.map((task) => (
             <motion.div
               key={task.id}
               layout
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              variants={staggerChild}
+              exit={{ opacity: 0, scale: 0.92, filter: "blur(6px)", transition: { duration: 0.2 } }}
               className={`
                 group relative bg-card rounded-2xl p-6 border transition-all duration-300
                 ${task.isCompleted ? "border-border opacity-60" : "border-border/50 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5"}
@@ -125,7 +130,7 @@ export default function Tasks() {
             </motion.div>
           ))}
         </AnimatePresence>
-      </div>
+      </motion.div>
 
       {filteredTasks?.length === 0 && (
         <div className="text-center py-20">

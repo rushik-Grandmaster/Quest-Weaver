@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -10,6 +10,8 @@ import { WelcomeAnimation } from "@/components/WelcomeAnimation";
 import { LandingPage } from "@/components/LandingPage";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { pageVariants, pageTransition } from "@/lib/animations";
 
 import Home from "@/pages/Home";
 import Tasks from "@/pages/Tasks";
@@ -29,27 +31,36 @@ import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 
 function PrivateLayout({ children }: { children: React.ReactNode }) {
+  const [location] = useLocation();
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-background text-foreground overflow-hidden">
       <Navigation />
       <div className="flex-1 flex flex-col h-screen overflow-hidden relative z-10">
         <Header />
-        <main className="flex-1 overflow-y-auto pb-20 md:pb-0 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
-          {children}
+        <main className="flex-1 overflow-y-auto pb-20 md:pb-0 scrollbar-app">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={location}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={pageTransition}
+              style={{ minHeight: "100%" }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
-      
-      {/* Ambient shadow glow effects */}
+
+      {/* Ambient glow + dot grid */}
       <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[-15%] right-[-10%] w-[600px] h-[600px] rounded-full" style={{ background: "radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)" }} />
         <div className="absolute bottom-[-15%] left-[-10%] w-[600px] h-[600px] rounded-full" style={{ background: "radial-gradient(circle, rgba(59,130,246,0.05) 0%, transparent 70%)" }} />
-        {/* Subtle dot grid */}
         <div
           className="absolute inset-0 opacity-[0.025]"
-          style={{
-            backgroundImage: "radial-gradient(circle, rgba(99,102,241,0.8) 1px, transparent 1px)",
-            backgroundSize: "32px 32px",
-          }}
+          style={{ backgroundImage: "radial-gradient(circle, rgba(99,102,241,0.8) 1px, transparent 1px)", backgroundSize: "32px 32px" }}
         />
       </div>
     </div>

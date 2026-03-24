@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { getRank, xpForLevel } from "@shared/levels";
+import { xpBarTransition } from "@/lib/animations";
 
 export function Header() {
   const { data: stats, isLoading } = useUserStats();
@@ -96,12 +97,12 @@ export function Header() {
             >
               <motion.div
                 className="h-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 1.2, ease: "easeOut" }}
+                initial={{ width: 0, filter: "blur(4px)" }}
+                animate={{ width: `${progress}%`, filter: "blur(0px)" }}
+                transition={xpBarTransition}
                 style={{
-                  background: "linear-gradient(90deg, rgba(99,102,241,0.8), rgba(129,140,248,1))",
-                  boxShadow: "0 0 8px rgba(99,102,241,0.6)",
+                  background: "linear-gradient(90deg, rgba(99,102,241,0.7), rgba(129,140,248,1), rgba(165,180,252,0.9))",
+                  boxShadow: "0 0 10px rgba(99,102,241,0.7), 0 0 20px rgba(99,102,241,0.3)",
                 }}
               />
             </div>
