@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   LayoutDashboard, CheckSquare, ShoppingBag, Calendar,
   LogOut, Backpack, BookMarked, Sparkles, Flame, Activity,
-  Timer, Trophy, Shield
+  Timer, Trophy, Shield, Swords
 } from "lucide-react";
 
 export function Navigation() {
@@ -23,6 +23,7 @@ export function Navigation() {
     { href: "/achievements", label: "Achievements",  icon: Trophy },
     { href: "/ranks",        label: "Ranks",         icon: Shield },
     { href: "/timer",        label: "Pressure Timer",icon: Timer },
+    { href: "/quest-timer",  label: "Quest Timer",   icon: Swords },
   ];
 
   return (

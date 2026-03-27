@@ -731,6 +731,16 @@ Use this data to give highly personalized advice, celebrate progress, and help R
     }
   });
 
+  // Quest Timer — penalty deduction (called every 5 min overtime)
+  app.post("/api/quest-timer/penalty", requireAuth, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    let stats = await storage.getUserStats(userId);
+    if (!stats) stats = await storage.createUserStats(userId);
+    const newPoints = Math.max(0, stats.points - 5);
+    const updatedStats = await storage.updateUserStats(userId, { points: newPoints });
+    res.json({ stats: updatedStats, penaltyApplied: 5 });
+  });
+
   app.post("/api/ai/lens", requireAuth, async (req: any, res) => {
     try {
       const { image } = req.body;
