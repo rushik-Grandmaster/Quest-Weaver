@@ -233,6 +233,24 @@ export const insertBodyFatScanSchema = createInsertSchema(bodyFatScans).omit({ i
   userId: z.string().optional(),
 });
 
+export const wishlistItems = pgTable("wishlist_items", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  title: text("title").notNull(),
+  price: text("price"),
+  imageUrl: text("image_url"),
+  productUrl: text("product_url").notNull(),
+  asin: text("asin"),
+  category: text("category").default("other").notNull(),
+  notes: text("notes"),
+  addedAt: timestamp("added_at").defaultNow().notNull(),
+});
+
+export const insertWishlistItemSchema = createInsertSchema(wishlistItems).omit({ id: true, addedAt: true }).extend({
+  userId: z.string().optional(),
+  category: z.enum(["electronics","clothing","books","fitness","gaming","home","food","beauty","other"]).default("other"),
+});
+
 // === TYPES ===
 export type UserStats = typeof userStats.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
@@ -245,9 +263,11 @@ export type ProgressTimer = typeof progressTimers.$inferSelect;
 export type UserAchievement = typeof userAchievements.$inferSelect;
 export type ChatSession = typeof chatSessions.$inferSelect;
 export type AiChatMessage = typeof aiChatMessages.$inferSelect;
+export type WishlistItem = typeof wishlistItems.$inferSelect;
 
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type InsertShopItem = z.infer<typeof insertShopItemSchema>;
 export type InsertScheduleItem = z.infer<typeof insertScheduleItemSchema>;
 export type InsertDiaryEntry = z.infer<typeof insertDiaryEntrySchema>;
 export type InsertBodyFatScan = z.infer<typeof insertBodyFatScanSchema>;
+export type InsertWishlistItem = z.infer<typeof insertWishlistItemSchema>;
