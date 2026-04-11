@@ -559,7 +559,7 @@ Use this data to give highly personalized advice, celebrate progress, and help R
       ];
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4.1",
         messages: [
           { role: "system", content: `You are Luminous, an advanced AI life coach and shadow system assistant for LifeRPG. You help Rushik Sama manage their life as an RPG. You have full real-time access to their player data — always use it to give deeply personalized, specific, and motivating responses. You have tools to create/delete tasks, shop items, and schedule events. Always refer to the user as "Rushik Sama". When asked about their progress, quests, inventory, achievements, or body stats, use the data below to give accurate, insightful answers. Never say you don't have access to their data. Celebrate wins, notice patterns, and push them forward like a true mentor.${playerContext}` },
           ...chatHistory,
@@ -605,7 +605,7 @@ Use this data to give highly personalized advice, celebrate progress, and help R
         }
 
         const finalCompletion = await openai.chat.completions.create({
-          model: "gpt-4o",
+          model: "gpt-4.1",
           messages: [
             { role: "system", content: "The tools have been executed. Confirm to the user that their request has been completed or explain any errors." },
             ...chatHistory,
@@ -637,7 +637,7 @@ Use this data to give highly personalized advice, celebrate progress, and help R
       }
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4.1",
         messages: [
           {
             role: "system",
@@ -752,7 +752,7 @@ Use this data to give highly personalized advice, celebrate progress, and help R
       }
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4.1",
         max_tokens: 1024,
         messages: [
           {
