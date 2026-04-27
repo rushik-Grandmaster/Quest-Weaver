@@ -731,6 +731,151 @@ Use this data to give highly personalized advice, celebrate progress, and help R
     }
   });
 
+  /* ─── AMAZON WISHLIST ─────────────────────────────────── */
+  app.get("/api/wishlist", requireAuth, async (req: any, res) => {
+    const items = await storage.getWishlistItems(req.user.claims.sub);
+    res.json(items);
+  });
+
+  app.post("/api/wishlist", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const item = await storage.createWishlistItem({ ...req.body, userId });
+      res.status(201).json(item);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message ?? "Failed to save item" });
+    }
+  });
+
+  app.delete("/api/wishlist/:id", requireAuth, async (req, res) => {
+    await storage.deleteWishlistItem(parseInt(req.params.id));
+    res.status(204).end();
+  });
+
+  /** Try to fetch product info from an Amazon.in URL.
+   *  Amazon often blocks bots — return whatever we can get; client can edit fields. */
+  app.post("/api/wishlist/fetch-product", requireAuth, async (req, res) => {
+    const { url } = req.body as { url?: string };
+    if (!url) return res.status(400).json({ message: "URL required" });
+
+    // Extract ASIN from URL
+    const asinMatch =
+      url.match(/\/dp\/([A-Z0-9]{10})/i) ||
+      url.match(/\/gp\/product\/([A-Z0-9]{10})/i) ||
+      url.match(/\/gp\/aw\/d\/([A-Z0-9]{10})/i) ||
+      url.match(/[?&]asin=([A-Z0-9]{10})/i);
+    const asin = asinMatch?.[1]?.toUpperCase();
+
+    // Validate amazon.in
+    const isAmazon = /amazon\.(in|com)/i.test(url);
+    if (!isAmazon && !asin) {
+      return res.status(400).json({ message: "Please provide a valid Amazon.in URL" });
+    }
+
+    const fetchUrl = asin ? `https://www.amazon.in/dp/${asin}` : url;
+
+    try {
+      const response = await fetch(fetchUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+          "Accept-Language": "en-IN,en;q=0.9",
+          "Accept-Encoding": "gzip, deflate, br",
+          "Cache-Control": "no-cache",
+          "Upgrade-Insecure-Requests": "1",
+        },
+        redirect: "follow",
+      });
+
+      const html = await response.text();
+
+      const decode = (s: string) =>
+        s
+          .replace(/<[^>]+>/g, "")
+          .replace(/&amp;/g, "&")
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/&nbsp;/g, " ")
+          .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+          .replace(/\s+/g, " ")
+          .trim();
+
+      // ── Title ─────────────────────────────────────────
+      let title = "";
+      const titlePatterns = [
+        /id="productTitle"[^>]*>([\s\S]*?)<\/span>/i,
+        /id="title"[^>]*>\s*<span[^>]*>([\s\S]*?)<\/span>/i,
+        /<meta\s+name="title"\s+content="([^"]+)"/i,
+        /<title>([^<]+)<\/title>/i,
+      ];
+      for (const p of titlePatterns) {
+        const m = html.match(p);
+        if (m) {
+          const cleaned = decode(m[1]).replace(/\s*-\s*Amazon\.in.*$/i, "").trim();
+          if (cleaned.length > 5) { title = cleaned.slice(0, 200); break; }
+        }
+      }
+
+      // ── Price (₹) ─────────────────────────────────────
+      let price = "";
+      const pricePatterns = [
+        /"priceAmount":\s*([\d.]+)/,
+        /"displayPrice":\s*"₹\s*([\d,]+)/,
+        /class="a-offscreen">\s*₹\s*([\d,]+\.?\d*)/i,
+        /₹\s*([\d,]+\.?\d*)/,
+      ];
+      for (const p of pricePatterns) {
+        const m = html.match(p);
+        if (m) {
+          const num = m[1].replace(/,/g, "");
+          const n = parseFloat(num);
+          if (!isNaN(n) && n > 0) {
+            price = `₹${n.toLocaleString("en-IN")}`;
+            break;
+          }
+        }
+      }
+
+      // ── Image ─────────────────────────────────────────
+      let imageUrl = "";
+      const imgPatterns = [
+        /"hiRes":\s*"(https:\/\/m\.media-amazon\.com[^"]+\.(?:jpg|jpeg|png))"/i,
+        /"large":\s*"(https:\/\/m\.media-amazon\.com[^"]+\.(?:jpg|jpeg|png))"/i,
+        /"mainUrl":\s*"(https:\/\/m\.media-amazon\.com[^"]+\.(?:jpg|jpeg|png))"/i,
+        /data-old-hires="(https:\/\/[^"]+\.(?:jpg|jpeg|png))"/i,
+        /id="landingImage"[^>]+src="(https:\/\/[^"]+\.(?:jpg|jpeg|png))"/i,
+        /<meta\s+property="og:image"\s+content="([^"]+)"/i,
+      ];
+      for (const p of imgPatterns) {
+        const m = html.match(p);
+        if (m) { imageUrl = m[1].replace(/\\u002F/g, "/"); break; }
+      }
+
+      const success = !!(title || imageUrl || price);
+
+      return res.json({
+        title,
+        price,
+        imageUrl,
+        asin: asin ?? "",
+        productUrl: fetchUrl,
+        success,
+        message: success ? null : "Could not extract details — please fill them in manually.",
+      });
+    } catch (err: any) {
+      console.error("Amazon fetch error:", err?.message);
+      return res.json({
+        title: "",
+        price: "",
+        imageUrl: "",
+        asin: asin ?? "",
+        productUrl: fetchUrl,
+        success: false,
+        message: "Amazon blocked the request. You can still save the URL and enter details manually.",
+      });
+    }
+  });
+
   // Quest Timer — penalty deduction (called every 5 min overtime)
   app.post("/api/quest-timer/penalty", requireAuth, async (req: any, res) => {
     const userId = req.user.claims.sub;

@@ -2,9 +2,9 @@ import { db } from "./db";
 import {
   users, userStats, tasks, shopItems, inventory, scheduleItems, diaryEntries,
   aiChatMessages, conversations, messages, bodyFatScans, progressTimers, userAchievements,
-  chatSessions,
-  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement, type ChatSession, type AiChatMessage,
-  type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertBodyFatScan
+  chatSessions, wishlistItems,
+  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement, type ChatSession, type AiChatMessage, type WishlistItem,
+  type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertBodyFatScan, type InsertWishlistItem
 } from "@shared/schema";
 import { eq, and, desc, sql, asc } from "drizzle-orm";
 
@@ -69,6 +69,11 @@ export interface IStorage {
   // Achievements
   getUnlockedAchievements(userId: string): Promise<UserAchievement[]>;
   unlockAchievement(userId: string, achievementId: string): Promise<UserAchievement>;
+
+  // Wishlist
+  getWishlistItems(userId: string): Promise<WishlistItem[]>;
+  createWishlistItem(item: InsertWishlistItem): Promise<WishlistItem>;
+  deleteWishlistItem(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -336,6 +341,23 @@ export class DatabaseStorage implements IStorage {
       .values({ userId, achievementId })
       .returning();
     return record;
+  }
+
+  async getWishlistItems(userId: string): Promise<WishlistItem[]> {
+    return await db.select().from(wishlistItems)
+      .where(eq(wishlistItems.userId, userId))
+      .orderBy(desc(wishlistItems.addedAt));
+  }
+
+  async createWishlistItem(item: InsertWishlistItem): Promise<WishlistItem> {
+    const [record] = await db.insert(wishlistItems)
+      .values(item as any)
+      .returning();
+    return record;
+  }
+
+  async deleteWishlistItem(id: number): Promise<void> {
+    await db.delete(wishlistItems).where(eq(wishlistItems.id, id));
   }
 }
 

@@ -25,6 +25,7 @@ import LuminousLens from "@/pages/LuminousLens";
 import Streaks from "@/pages/Streaks";
 import CountdownTimer from "@/pages/CountdownTimer";
 import QuestTimer from "@/pages/QuestTimer";
+import Wishlist from "@/pages/Wishlist";
 import Achievements from "@/pages/Achievements";
 import BodyFatAnalysis from "@/pages/BodyFatAnalysis";
 import Ranks from "@/pages/Ranks";
@@ -113,6 +114,7 @@ function Router() {
         <Route path="/body-fat" component={BodyFatAnalysis} />
         <Route path="/timer" component={CountdownTimer} />
         <Route path="/quest-timer" component={QuestTimer} />
+        <Route path="/wishlist" component={Wishlist} />
         <Route path="/achievements" component={Achievements} />
         <Route path="/ranks" component={Ranks} />
         <Route component={NotFound} />
