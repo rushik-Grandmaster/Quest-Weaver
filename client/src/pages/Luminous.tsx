@@ -4,10 +4,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useLocation } from "wouter";
 import {
   Sparkles, Send, Loader2, User, Mic, MicOff,
   Volume2, Camera, Upload, Search, X, ScanSearch,
-  MessageSquare, Clock, Trash2, Plus, ChevronRight
+  MessageSquare, Clock, Trash2, Plus, ChevronRight, Phone
 } from "lucide-react";
 import { api } from "@shared/routes";
 import { apiRequest } from "@/lib/queryClient";
@@ -60,6 +61,7 @@ export default function Luminous() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("chat");
+  const [, setLocation] = useLocation();
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -252,7 +254,29 @@ export default function Luminous() {
           </h1>
         </div>
 
-        {/* Tab switcher */}
+        {/* Live Voice CTA + Tab switcher */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setLocation("/luminous/voice")}
+            data-testid="button-launch-voice-call"
+            className="flex items-center gap-1.5 px-3 py-2 transition-all duration-200"
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "0.66rem",
+              letterSpacing: "0.08em",
+              fontWeight: 800,
+              background: "rgba(34,197,94,0.12)",
+              border: "1px solid rgba(34,197,94,0.45)",
+              borderRadius: "3px",
+              color: "rgba(134,239,172,0.95)",
+              boxShadow: "0 0 12px rgba(34,197,94,0.15)",
+            }}
+            title="Open immersive voice call"
+          >
+            <Phone className="w-3.5 h-3.5" />
+            LIVE VOICE
+          </button>
+
         <div className="flex gap-1 p-1" style={{ background: "rgba(4,7,18,0.8)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: "4px" }}>
           {TABS.map(tab => {
             const Icon = tab.icon;
@@ -281,6 +305,7 @@ export default function Luminous() {
               </button>
             );
           })}
+        </div>
         </div>
       </div>
 

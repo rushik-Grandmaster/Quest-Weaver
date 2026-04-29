@@ -22,6 +22,7 @@ import Schedule from "@/pages/Schedule";
 import Diary from "@/pages/Diary";
 import Luminous from "@/pages/Luminous";
 import LuminousLens from "@/pages/LuminousLens";
+import LuminousVoice from "@/pages/LuminousVoice";
 import Streaks from "@/pages/Streaks";
 import CountdownTimer from "@/pages/CountdownTimer";
 import QuestTimer from "@/pages/QuestTimer";
@@ -110,6 +111,7 @@ function Router() {
         <Route path="/diary" component={Diary} />
         <Route path="/luminous" component={Luminous} />
         <Route path="/lens" component={LuminousLens} />
+        <Route path="/luminous/voice" component={LuminousVoice} />
         <Route path="/streaks" component={Streaks} />
         <Route path="/body-fat" component={BodyFatAnalysis} />
         <Route path="/timer" component={CountdownTimer} />
