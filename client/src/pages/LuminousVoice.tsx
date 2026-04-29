@@ -43,7 +43,8 @@ export default function LuminousVoice() {
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const sessionIdRef = useRef<number | null>(null);
   const turnsRef = useRef<Turn[]>([]);
   const stateRef = useRef<CallState>("idle");
@@ -66,6 +67,39 @@ export default function LuminousVoice() {
       typeof window !== "undefined" &&
       ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
     if (!SR) setSupported(false);
+  }, []);
+
+  /* ─── load best speech-synthesis voice ────────────── */
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+
+    const pickBestVoice = (): SpeechSynthesisVoice | null => {
+      const voices = window.speechSynthesis.getVoices();
+      if (!voices.length) return null;
+      const en = voices.filter(v => /^en/i.test(v.lang));
+      const pool = en.length ? en : voices;
+      const tests: ((v: SpeechSynthesisVoice) => boolean)[] = [
+        v => /aria.*(online|natural)/i.test(v.name),
+        v => /jenny.*(online|natural)/i.test(v.name),
+        v => /natural/i.test(v.name) && /female/i.test(v.name),
+        v => /google\s+us\s+english/i.test(v.name),
+        v => /samantha/i.test(v.name),
+        v => /google.*english/i.test(v.name),
+        v => /microsoft.*(zira|aria|jenny)/i.test(v.name),
+        v => /female/i.test(v.name),
+        v => /en[-_]US/i.test(v.lang),
+      ];
+      for (const t of tests) {
+        const m = pool.find(t);
+        if (m) return m;
+      }
+      return pool[0];
+    };
+
+    const load = () => { voiceRef.current = pickBestVoice(); };
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+    return () => { window.speechSynthesis.onvoiceschanged = null; };
   }, []);
 
   /* ─── mic level visualizer loop ──────────────────── */
@@ -129,37 +163,47 @@ export default function LuminousVoice() {
       setTurns(prev => [...prev, aiTurn]);
       setCallState("speaking");
 
-      /* 3. fetch TTS */
-      const tres = await fetch("/api/ai/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ text: replyText.slice(0, 4000) }),
-      });
+      /* 3. Speak via browser speech-synthesis (free, no API needed) */
+      if (!window.speechSynthesis) {
+        // No TTS available — just go back to listening
+        respondingRef.current = false;
+        if (stateRef.current !== "ended") {
+          setCallState("listening");
+          try { recognitionRef.current?.start(); } catch {}
+        }
+        return;
+      }
 
-      if (!tres.ok) throw new Error("TTS failed");
-      const blob = await tres.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audioRef.current = audio;
+      // Cancel any prior speech
+      window.speechSynthesis.cancel();
 
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
+      const utt = new SpeechSynthesisUtterance(replyText.slice(0, 4000));
+      if (voiceRef.current) utt.voice = voiceRef.current;
+      utt.lang = voiceRef.current?.lang ?? "en-US";
+      utt.rate = 1.0;
+      utt.pitch = 1.0;
+      utt.volume = 1.0;
+      utteranceRef.current = utt;
+
+      const resume = () => {
+        utteranceRef.current = null;
         respondingRef.current = false;
         if (stateRef.current !== "ended") {
           setCallState("listening");
           try { recognitionRef.current?.start(); } catch {}
         }
       };
-      audio.onerror = () => {
-        respondingRef.current = false;
-        if (stateRef.current !== "ended") {
-          setCallState("listening");
-          try { recognitionRef.current?.start(); } catch {}
+
+      utt.onend = resume;
+      utt.onerror = resume;
+      // pulse the orb on each spoken word for a "talking" feel
+      utt.onboundary = (e) => {
+        if ((e as any).name === "word" || !(e as any).name) {
+          setMicLevel(0.4 + Math.random() * 0.6);
         }
       };
 
-      await audio.play();
+      window.speechSynthesis.speak(utt);
     } catch (err: any) {
       console.error("Voice loop error:", err);
       setErrorMsg(err.message || "Something went wrong");
@@ -256,8 +300,8 @@ export default function LuminousVoice() {
     setCallState("ended");
     try { recognitionRef.current?.stop(); } catch {}
     try { recognitionRef.current?.abort?.(); } catch {}
-    audioRef.current?.pause();
-    audioRef.current = null;
+    try { window.speechSynthesis?.cancel(); } catch {}
+    utteranceRef.current = null;
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
     if (animRef.current) cancelAnimationFrame(animRef.current);
@@ -270,8 +314,8 @@ export default function LuminousVoice() {
   /* interrupt currently-playing TTS to speak */
   const interruptTTS = () => {
     if (callState !== "speaking") return;
-    audioRef.current?.pause();
-    audioRef.current = null;
+    try { window.speechSynthesis?.cancel(); } catch {}
+    utteranceRef.current = null;
     respondingRef.current = false;
     setCallState("listening");
     try { recognitionRef.current?.start(); } catch {}

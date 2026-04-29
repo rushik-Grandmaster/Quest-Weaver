@@ -299,26 +299,12 @@ export async function registerRoutes(
     res.json(history);
   });
 
-  app.post("/api/ai/tts", requireAuth, async (req: any, res) => {
-    try {
-      const { text } = req.body;
-      if (!text) return res.status(400).send("Text is required");
-      
-      const mp3 = await openai.audio.speech.create({
-        model: "tts-1",
-        voice: "nova",
-        input: text,
-      });
-      
-      const buffer = Buffer.from(await mp3.arrayBuffer());
-      res.setHeader("Content-Type", "audio/mpeg");
-      res.setHeader("Content-Length", buffer.length);
-      res.setHeader("Cache-Control", "no-cache");
-      res.send(buffer);
-    } catch (err) {
-      console.error("TTS error:", err);
-      res.status(500).send("TTS failed: " + (err instanceof Error ? err.message : String(err)));
-    }
+  // OpenAI TTS isn't exposed through the Replit AI proxy. Clients use browser
+  // speech-synthesis instead. Keep route for backwards compatibility.
+  app.post("/api/ai/tts", requireAuth, (_req, res) => {
+    res.status(501).json({
+      message: "Server TTS unavailable on this deployment. Browser speech-synthesis is used instead.",
+    });
   });
 
   // ── Chat Session Routes ──

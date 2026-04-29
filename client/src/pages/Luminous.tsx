@@ -133,17 +133,17 @@ export default function Luminous() {
     else { setIsListening(true); recognitionRef.current?.start(); }
   };
 
-  const speak = async (text: string) => {
+  const speak = (text: string) => {
+    // Browser speech-synthesis (the Replit AI proxy doesn't expose OpenAI TTS).
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
     try {
-      window.speechSynthesis?.cancel();
-      const res = await fetch("/api/ai/tts", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }), credentials: "include",
-      });
-      if (!res.ok) throw new Error();
-      const blob = await res.blob();
-      new Audio(URL.createObjectURL(blob)).play().catch(() => window.speechSynthesis?.speak(new SpeechSynthesisUtterance(text)));
-    } catch { window.speechSynthesis?.speak(new SpeechSynthesisUtterance(text)); }
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance(text.slice(0, 4000));
+      utt.lang = "en-US";
+      utt.rate = 1.0;
+      utt.pitch = 1.0;
+      window.speechSynthesis.speak(utt);
+    } catch {}
   };
 
   // Start a new session
