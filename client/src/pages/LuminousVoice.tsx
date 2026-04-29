@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Mic, MicOff, PhoneOff, Loader2, Sparkles, Volume2,
-  AlertTriangle, MessageSquare, ArrowLeft, Square,
+  AlertTriangle, MessageSquare, ArrowLeft, Square, Check, Play, X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -74,6 +74,9 @@ export default function LuminousVoice() {
   const [micLevel, setMicLevel] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [supported, setSupported] = useState(true);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceName, setSelectedVoiceName] = useState<string | null>(null);
+  const [showVoicePicker, setShowVoicePicker] = useState(false);
 
   /* ─── refs (so async callbacks see fresh values) ──── */
   const recognitionRef = useRef<any>(null);
@@ -153,10 +156,67 @@ export default function LuminousVoice() {
       return pool[0];
     };
 
-    const load = () => { voiceRef.current = pickBestVoice(); };
+    const load = () => {
+      const all = window.speechSynthesis.getVoices();
+      // Show English first, then everything else, alphabetically by name.
+      const sorted = [...all].sort((a, b) => {
+        const aEn = /^en/i.test(a.lang) ? 0 : 1;
+        const bEn = /^en/i.test(b.lang) ? 0 : 1;
+        if (aEn !== bEn) return aEn - bEn;
+        return a.name.localeCompare(b.name);
+      });
+      setVoices(sorted);
+
+      // Restore the user's saved choice if it still exists on this device.
+      const saved = typeof localStorage !== "undefined" ? localStorage.getItem("luminousVoiceName") : null;
+      if (saved) {
+        const found = all.find(v => v.name === saved);
+        if (found) {
+          voiceRef.current = found;
+          setSelectedVoiceName(found.name);
+          return;
+        }
+      }
+      const best = pickBestVoice();
+      voiceRef.current = best;
+      setSelectedVoiceName(best?.name ?? null);
+    };
     load();
     window.speechSynthesis.onvoiceschanged = load;
     return () => { window.speechSynthesis.onvoiceschanged = null; };
+  }, []);
+
+  /* ─── manually pick & preview a voice ──────────────── */
+  const selectVoice = useCallback((voice: SpeechSynthesisVoice) => {
+    voiceRef.current = voice;
+    setSelectedVoiceName(voice.name);
+    try { localStorage.setItem("luminousVoiceName", voice.name); } catch {}
+    // Preview the voice immediately so the user knows what it sounds like.
+    if (window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+        const utt = new SpeechSynthesisUtterance("Hello Rushik Sama. This is your voice.");
+        utt.voice = voice;
+        utt.lang = voice.lang;
+        utt.rate = 1.0;
+        utt.pitch = 1.0;
+        utt.volume = 1.0;
+        window.speechSynthesis.speak(utt);
+      } catch {}
+    }
+  }, []);
+
+  const previewVoice = useCallback((voice: SpeechSynthesisVoice, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance("Greetings, Rushik Sama. I am Luminous.");
+      utt.voice = voice;
+      utt.lang = voice.lang;
+      utt.rate = 1.0;
+      window.speechSynthesis.speak(utt);
+    } catch {}
   }, []);
 
   /* ─── mic level visualizer loop ──────────────────── */
@@ -534,8 +594,161 @@ export default function LuminousVoice() {
           </div>
         </div>
 
-        <div className="w-[78px]" />
+        <button
+          onClick={() => setShowVoicePicker(true)}
+          data-testid="button-open-voice-picker"
+          className="flex items-center gap-2 px-3 py-2 transition-all duration-200 max-w-[180px]"
+          style={{
+            background: "rgba(10,14,30,0.7)",
+            border: "1px solid rgba(99,102,241,0.4)",
+            borderRadius: "3px",
+            color: "rgba(199,210,254,0.9)",
+            fontSize: "0.65rem",
+            letterSpacing: "0.05em",
+            fontWeight: 700,
+          }}
+          title="Change voice"
+        >
+          <Volume2 className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="truncate">
+            {selectedVoiceName ? selectedVoiceName.replace(/^Microsoft\s+|^Google\s+/, "") : "VOICE"}
+          </span>
+        </button>
       </header>
+
+      {/* ── Voice picker overlay ──────────────────────── */}
+      <AnimatePresence>
+        {showVoicePicker && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-3"
+            style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}
+            onClick={() => setShowVoicePicker(false)}
+            data-testid="overlay-voice-picker"
+          >
+            <motion.div
+              initial={{ y: 40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 40, opacity: 0 }}
+              className="w-full max-w-md flex flex-col"
+              style={{
+                background: "linear-gradient(180deg, rgba(15,18,40,0.98) 0%, rgba(8,11,28,0.98) 100%)",
+                border: "1px solid rgba(99,102,241,0.4)",
+                borderRadius: "6px",
+                maxHeight: "75vh",
+                boxShadow: "0 0 60px rgba(99,102,241,0.2)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="flex items-center justify-between p-4 border-b"
+                style={{ borderColor: "rgba(99,102,241,0.25)" }}
+              >
+                <div>
+                  <div className="hud-label" style={{ color: "rgba(165,180,252,0.85)" }}>◈ SELECT VOICE</div>
+                  <div style={{ color: "rgba(148,163,184,0.65)", fontSize: "0.7rem", marginTop: "2px" }}>
+                    {voices.length} available • Tap to choose, ▶ to preview
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowVoicePicker(false)}
+                  data-testid="button-close-voice-picker"
+                  className="w-8 h-8 flex items-center justify-center"
+                  style={{
+                    background: "rgba(239,68,68,0.15)",
+                    border: "1px solid rgba(239,68,68,0.4)",
+                    borderRadius: "3px",
+                    color: "rgba(248,113,113,0.95)",
+                  }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto scrollbar-app flex-1 p-2">
+                {voices.length === 0 ? (
+                  <div
+                    className="p-6 text-center"
+                    style={{ color: "rgba(148,163,184,0.6)", fontSize: "0.8rem" }}
+                  >
+                    No voices loaded yet. Try waiting a moment, or your browser may not expose any voices.
+                  </div>
+                ) : (
+                  voices.map((v) => {
+                    const isSelected = v.name === selectedVoiceName;
+                    return (
+                      <button
+                        key={`${v.name}-${v.lang}`}
+                        onClick={() => selectVoice(v)}
+                        data-testid={`button-voice-${v.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}`}
+                        className="w-full flex items-center gap-3 p-3 mb-1 transition-all duration-150 text-left"
+                        style={{
+                          background: isSelected ? "rgba(99,102,241,0.18)" : "rgba(10,14,30,0.5)",
+                          border: `1px solid ${isSelected ? "rgba(99,102,241,0.55)" : "rgba(30,35,60,0.6)"}`,
+                          borderRadius: "3px",
+                        }}
+                      >
+                        <div
+                          className="w-5 h-5 flex items-center justify-center flex-shrink-0"
+                          style={{
+                            border: `1px solid ${isSelected ? "rgba(99,102,241,0.7)" : "rgba(99,102,241,0.3)"}`,
+                            borderRadius: "2px",
+                            background: isSelected ? "rgba(99,102,241,0.25)" : "transparent",
+                          }}
+                        >
+                          {isSelected && <Check className="w-3.5 h-3.5" style={{ color: "rgba(199,210,254,1)" }} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div
+                            className="font-bold truncate"
+                            style={{
+                              color: isSelected ? "rgba(199,210,254,1)" : "rgba(199,210,254,0.85)",
+                              fontSize: "0.78rem",
+                            }}
+                          >
+                            {v.name}
+                          </div>
+                          <div style={{ color: "rgba(148,163,184,0.55)", fontSize: "0.65rem", marginTop: "2px" }}>
+                            {v.lang}{v.localService ? " • LOCAL" : " • CLOUD"}{v.default ? " • DEFAULT" : ""}
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => previewVoice(v, e)}
+                          data-testid={`button-preview-${v.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}`}
+                          className="w-9 h-9 flex items-center justify-center flex-shrink-0"
+                          style={{
+                            background: "rgba(99,102,241,0.12)",
+                            border: "1px solid rgba(99,102,241,0.35)",
+                            borderRadius: "3px",
+                            color: "rgba(165,180,252,0.95)",
+                          }}
+                          title="Preview this voice"
+                        >
+                          <Play className="w-3.5 h-3.5" fill="currentColor" />
+                        </button>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              <div
+                className="p-3 border-t text-center"
+                style={{
+                  borderColor: "rgba(99,102,241,0.2)",
+                  color: "rgba(148,163,184,0.55)",
+                  fontSize: "0.65rem",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Choice is saved to this device. CLOUD voices sound more natural.
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Main orb area ───────────────────────────── */}
       <main className="flex-1 flex flex-col items-center justify-center px-5 relative">
