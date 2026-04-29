@@ -118,21 +118,38 @@ export default function LuminousVoice() {
       if (!voices.length) return null;
       const en = voices.filter(v => /^en/i.test(v.lang));
       const pool = en.length ? en : voices;
+
+      // Names that are explicitly male — avoid these.
+      const maleNames = /\b(male|man|boy|guy|david|mark|george|james|fred|alex|daniel|tom|paul|peter|brian|kevin|ryan|matthew|jacob|aaron|guy|liam|noah|ethan|oliver|william|henry|sebastian|elijah|benjamin|lucas|jackson|owen|levi|leo|jack|carter|wyatt|julian|grayson|isaac|diego|antonio|miguel|jorge|carlos|rishi|hemant|aditi)\b/i;
+
+      // Explicitly female-named voices we know about across browsers.
+      const femaleNames = /\b(female|woman|girl|aria|jenny|zira|eva|samantha|allison|ava|susan|victoria|karen|moira|tessa|fiona|kate|serena|veena|catherine|amelie|amelia|sophie|sophia|emma|olivia|isabella|mia|charlotte|amaira|saanvi|sara|chloe|ella|nora|lily|hannah|grace|aria|nova|joanna|salli|kimberly|kendra|ivy|kajal|raveena|aditi|priya|shruti|elsa|google\s+us\s+english|natural)\b/i;
+
+      const isMaleName = (v: SpeechSynthesisVoice) => maleNames.test(v.name);
+      const isFemaleName = (v: SpeechSynthesisVoice) => femaleNames.test(v.name);
+
+      // Priority list: most natural-sounding female voices first.
       const tests: ((v: SpeechSynthesisVoice) => boolean)[] = [
-        v => /aria.*(online|natural)/i.test(v.name),
-        v => /jenny.*(online|natural)/i.test(v.name),
-        v => /natural/i.test(v.name) && /female/i.test(v.name),
-        v => /google\s+us\s+english/i.test(v.name),
+        v => /aria.*(online|natural)/i.test(v.name) && !isMaleName(v),
+        v => /jenny.*(online|natural)/i.test(v.name) && !isMaleName(v),
+        v => /natural/i.test(v.name) && isFemaleName(v),
         v => /samantha/i.test(v.name),
-        v => /google.*english/i.test(v.name),
-        v => /microsoft.*(zira|aria|jenny)/i.test(v.name),
+        v => /google\s+us\s+english/i.test(v.name), // Google's en-US default IS female
+        v => /google\s+uk\s+english\s+female/i.test(v.name),
+        v => /microsoft.*(zira|aria|jenny|eva)/i.test(v.name),
+        v => isFemaleName(v) && !isMaleName(v),
         v => /female/i.test(v.name),
-        v => /en[-_]US/i.test(v.lang),
       ];
+
       for (const t of tests) {
         const m = pool.find(t);
         if (m) return m;
       }
+
+      // Fallback: any voice that ISN'T explicitly male.
+      const nonMale = pool.find(v => !isMaleName(v));
+      if (nonMale) return nonMale;
+
       return pool[0];
     };
 
