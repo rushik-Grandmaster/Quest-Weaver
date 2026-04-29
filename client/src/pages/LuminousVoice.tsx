@@ -11,6 +11,43 @@ type CallState = "idle" | "listening" | "thinking" | "speaking" | "error" | "end
 
 type Turn = { role: "user" | "assistant"; content: string };
 
+/* ─── split long text into sentence-sized chunks for TTS ── */
+function chunkText(text: string, maxLen = 180): string[] {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  if (!cleaned) return [];
+  if (cleaned.length <= maxLen) return [cleaned];
+
+  // Split on sentence boundaries first, then group up to maxLen.
+  const sentences = cleaned.match(/[^.!?]+[.!?]+|\S+$/g) ?? [cleaned];
+  const out: string[] = [];
+  let buf = "";
+  for (const s of sentences) {
+    const piece = s.trim();
+    if (!piece) continue;
+    if ((buf + " " + piece).trim().length <= maxLen) {
+      buf = (buf ? buf + " " : "") + piece;
+    } else {
+      if (buf) out.push(buf);
+      // If the sentence itself is too long, hard-split on commas / words.
+      if (piece.length > maxLen) {
+        let rest = piece;
+        while (rest.length > maxLen) {
+          const cut = rest.lastIndexOf(",", maxLen);
+          const idx = cut > 40 ? cut + 1 : rest.lastIndexOf(" ", maxLen);
+          const splitAt = idx > 0 ? idx : maxLen;
+          out.push(rest.slice(0, splitAt).trim());
+          rest = rest.slice(splitAt).trim();
+        }
+        buf = rest;
+      } else {
+        buf = piece;
+      }
+    }
+  }
+  if (buf) out.push(buf);
+  return out;
+}
+
 /* ─── tiny corner brackets ────────────────────────────── */
 function Brackets({ color = "rgba(99,102,241,0.4)" }: { color?: string }) {
   const s: React.CSSProperties = { borderColor: color };
@@ -45,6 +82,9 @@ export default function LuminousVoice() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const ttsPrimedRef = useRef(false);
+  const ttsWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ttsPumpRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionIdRef = useRef<number | null>(null);
   const turnsRef = useRef<Turn[]>([]);
   const stateRef = useRef<CallState>("idle");
@@ -164,28 +204,11 @@ export default function LuminousVoice() {
       setCallState("speaking");
 
       /* 3. Speak via browser speech-synthesis (free, no API needed) */
-      if (!window.speechSynthesis) {
-        // No TTS available — just go back to listening
-        respondingRef.current = false;
-        if (stateRef.current !== "ended") {
-          setCallState("listening");
-          try { recognitionRef.current?.start(); } catch {}
-        }
-        return;
-      }
-
-      // Cancel any prior speech
-      window.speechSynthesis.cancel();
-
-      const utt = new SpeechSynthesisUtterance(replyText.slice(0, 4000));
-      if (voiceRef.current) utt.voice = voiceRef.current;
-      utt.lang = voiceRef.current?.lang ?? "en-US";
-      utt.rate = 1.0;
-      utt.pitch = 1.0;
-      utt.volume = 1.0;
-      utteranceRef.current = utt;
+      const synth = window.speechSynthesis;
 
       const resume = () => {
+        if (ttsWatchdogRef.current) { clearTimeout(ttsWatchdogRef.current); ttsWatchdogRef.current = null; }
+        if (ttsPumpRef.current) { clearInterval(ttsPumpRef.current); ttsPumpRef.current = null; }
         utteranceRef.current = null;
         respondingRef.current = false;
         if (stateRef.current !== "ended") {
@@ -194,16 +217,92 @@ export default function LuminousVoice() {
         }
       };
 
-      utt.onend = resume;
-      utt.onerror = resume;
-      // pulse the orb on each spoken word for a "talking" feel
-      utt.onboundary = (e) => {
-        if ((e as any).name === "word" || !(e as any).name) {
-          setMicLevel(0.4 + Math.random() * 0.6);
+      if (!synth) {
+        console.warn("speechSynthesis not available — skipping TTS");
+        resume();
+        return;
+      }
+
+      // Cancel any prior speech and reset paused state
+      try { synth.cancel(); } catch {}
+      try { synth.resume(); } catch {}
+
+      // Speak in chunks so long replies don't trip the Chrome ~15s cutoff
+      // and so each sentence starts faster.
+      const chunks = chunkText(replyText.slice(0, 4000), 180);
+      let chunkIdx = 0;
+      let speechStarted = false;
+
+      const speakNext = () => {
+        if (stateRef.current === "ended") { resume(); return; }
+        if (chunkIdx >= chunks.length) { resume(); return; }
+
+        const text = chunks[chunkIdx++];
+        const utt = new SpeechSynthesisUtterance(text);
+        // Setting .voice is unreliable on some mobile browsers — only override
+        // when we actually picked one and it's a remote (cloud) voice.
+        if (voiceRef.current) {
+          try { utt.voice = voiceRef.current; } catch {}
+        }
+        utt.lang = voiceRef.current?.lang ?? "en-US";
+        utt.rate = 1.0;
+        utt.pitch = 1.0;
+        utt.volume = 1.0;
+        utteranceRef.current = utt;
+
+        utt.onstart = () => {
+          speechStarted = true;
+          if (ttsWatchdogRef.current) { clearTimeout(ttsWatchdogRef.current); ttsWatchdogRef.current = null; }
+          // Chrome bug: speech stops after ~15s. Pump pause/resume to keep alive.
+          if (ttsPumpRef.current) clearInterval(ttsPumpRef.current);
+          ttsPumpRef.current = setInterval(() => {
+            try {
+              if (synth.speaking && !synth.paused) {
+                synth.pause();
+                synth.resume();
+              }
+            } catch {}
+          }, 10000);
+        };
+        utt.onboundary = (e) => {
+          if ((e as any).name === "word" || !(e as any).name) {
+            setMicLevel(0.4 + Math.random() * 0.6);
+          }
+        };
+        utt.onend = () => {
+          if (ttsPumpRef.current) { clearInterval(ttsPumpRef.current); ttsPumpRef.current = null; }
+          speakNext();
+        };
+        utt.onerror = (e) => {
+          console.warn("TTS error", (e as any)?.error || e);
+          if (ttsPumpRef.current) { clearInterval(ttsPumpRef.current); ttsPumpRef.current = null; }
+          // Try the next chunk; if no chunks left, resume listening
+          speakNext();
+        };
+
+        try {
+          synth.speak(utt);
+        } catch (err) {
+          console.warn("synth.speak threw", err);
+          resume();
+          return;
+        }
+
+        // Watchdog: if onstart never fires within 2.5s, the browser is
+        // silently refusing (very common on mobile). Resume listening.
+        if (chunkIdx === 1) {
+          ttsWatchdogRef.current = setTimeout(() => {
+            if (!speechStarted) {
+              console.warn("TTS watchdog: speech never started — resuming listen.");
+              try { synth.cancel(); } catch {}
+              setErrorMsg("Voice playback blocked by your browser. Tap the orb once to enable audio.");
+              resume();
+            }
+          }, 2500);
         }
       };
 
-      window.speechSynthesis.speak(utt);
+      speakNext();
     } catch (err: any) {
       console.error("Voice loop error:", err);
       setErrorMsg(err.message || "Something went wrong");
@@ -222,6 +321,22 @@ export default function LuminousVoice() {
       setErrorMsg("Live voice requires Chrome, Edge, or Safari (browser speech recognition).");
       return;
     }
+
+    /* PRIME speech-synthesis inside the user-gesture so async TTS is allowed
+       on mobile (iOS Safari & Android Chrome both require this). */
+    if (window.speechSynthesis && !ttsPrimedRef.current) {
+      try {
+        window.speechSynthesis.cancel();
+        const warmup = new SpeechSynthesisUtterance(" ");
+        warmup.volume = 0;
+        warmup.rate = 1;
+        window.speechSynthesis.speak(warmup);
+        // Trigger voice list load on browsers that need a kick
+        window.speechSynthesis.getVoices();
+        ttsPrimedRef.current = true;
+      } catch {}
+    }
+
     try {
       /* mic permission + stream */
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -301,6 +416,8 @@ export default function LuminousVoice() {
     try { recognitionRef.current?.stop(); } catch {}
     try { recognitionRef.current?.abort?.(); } catch {}
     try { window.speechSynthesis?.cancel(); } catch {}
+    if (ttsWatchdogRef.current) { clearTimeout(ttsWatchdogRef.current); ttsWatchdogRef.current = null; }
+    if (ttsPumpRef.current) { clearInterval(ttsPumpRef.current); ttsPumpRef.current = null; }
     utteranceRef.current = null;
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
