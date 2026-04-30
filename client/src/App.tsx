@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { Navigation } from "@/components/Navigation";
 import { Header } from "@/components/Header";
+import { VaultGate } from "@/components/VaultGate";
 import { WelcomeAnimation } from "@/components/WelcomeAnimation";
 import { LandingPage } from "@/components/LandingPage";
 import { Loader2 } from "lucide-react";
@@ -109,7 +110,9 @@ function Router() {
         <Route path="/inventory" component={Inventory} />
         <Route path="/used-items" component={UsedItems} />
         <Route path="/schedule" component={Schedule} />
-        <Route path="/diary" component={Diary} />
+        <Route path="/diary">
+          <VaultGate sectionLabel="Diary"><Diary /></VaultGate>
+        </Route>
         <Route path="/luminous" component={Luminous} />
         <Route path="/lens" component={LuminousLens} />
         <Route path="/luminous/voice" component={LuminousVoice} />
@@ -120,7 +123,9 @@ function Router() {
         <Route path="/wishlist" component={Wishlist} />
         <Route path="/achievements" component={Achievements} />
         <Route path="/ranks" component={Ranks} />
-        <Route path="/physique" component={Physique} />
+        <Route path="/physique">
+          <VaultGate sectionLabel="Physique Vault"><Physique /></VaultGate>
+        </Route>
         <Route component={NotFound} />
       </Switch>
     </PrivateLayout>

@@ -6,8 +6,9 @@ import {
   LayoutDashboard, CheckSquare, ShoppingBag, Calendar,
   LogOut, Backpack, BookMarked, Sparkles, Flame, Activity,
   Timer, Trophy, Shield, Swords, ShoppingCart, Lock,
-  Grid3x3, Search, X, Home as HomeIcon, ChevronRight,
+  Grid3x3, Search, X, Home as HomeIcon, ChevronRight, ShieldOff,
 } from "lucide-react";
+import { useVaultStatus, useLockVault } from "@/components/VaultGate";
 
 const OWNER_USER_ID = "26147528";
 
@@ -52,6 +53,9 @@ export function Navigation() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const { data: vaultStatus } = useVaultStatus();
+  const lockVault = useLockVault();
+  const vaultUnlocked = !!vaultStatus?.isSet && !!vaultStatus?.isUnlocked;
 
   const isOwner = !!user && user.id === OWNER_USER_ID;
 
@@ -185,6 +189,30 @@ export function Navigation() {
             </div>
           ))}
         </div>
+
+        {/* Lock Vault button (only when unlocked) */}
+        {vaultUnlocked && (
+          <div className="flex-shrink-0 px-2 pb-1">
+            <button
+              onClick={() => lockVault.mutate()}
+              data-testid="button-lock-vault"
+              disabled={lockVault.isPending}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-sm transition-all duration-200"
+              style={{
+                fontFamily: "var(--font-mono)", fontSize: "0.7rem",
+                letterSpacing: "0.06em",
+                color: "rgba(252,211,77,0.85)",
+                background: "rgba(245,158,11,0.06)",
+                border: "1px solid rgba(245,158,11,0.25)",
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(245,158,11,0.12)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(245,158,11,0.06)"; }}
+            >
+              <ShieldOff className="w-4 h-4" />
+              SEAL VAULT
+            </button>
+          </div>
+        )}
 
         {/* Logout */}
         <div className="flex-shrink-0 p-2"

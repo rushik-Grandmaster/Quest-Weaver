@@ -251,6 +251,15 @@ export const insertWishlistItemSchema = createInsertSchema(wishlistItems).omit({
   category: z.enum(["electronics","clothing","books","fitness","gaming","home","food","beauty","other"]).default("other"),
 });
 
+// Vault password — gates access to private sections (diary + physique) per-user
+export const vaultLocks = pgTable("vault_locks", {
+  userId: varchar("user_id").primaryKey().references(() => users.id),
+  passwordHash: text("password_hash").notNull(), // "salt:hash" (scrypt)
+  hint: text("hint"),                            // optional, max 80 chars
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Private physique tracking (owner-only)
 export const physiqueEntries = pgTable("physique_entries", {
   id: serial("id").primaryKey(),
@@ -288,6 +297,7 @@ export type ChatSession = typeof chatSessions.$inferSelect;
 export type AiChatMessage = typeof aiChatMessages.$inferSelect;
 export type WishlistItem = typeof wishlistItems.$inferSelect;
 export type PhysiqueEntry = typeof physiqueEntries.$inferSelect;
+export type VaultLock = typeof vaultLocks.$inferSelect;
 
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type InsertShopItem = z.infer<typeof insertShopItemSchema>;

@@ -2,8 +2,8 @@ import { db } from "./db";
 import {
   users, userStats, tasks, shopItems, inventory, scheduleItems, diaryEntries,
   aiChatMessages, conversations, messages, bodyFatScans, progressTimers, userAchievements,
-  chatSessions, wishlistItems, physiqueEntries,
-  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement, type ChatSession, type AiChatMessage, type WishlistItem, type PhysiqueEntry,
+  chatSessions, wishlistItems, physiqueEntries, vaultLocks,
+  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement, type ChatSession, type AiChatMessage, type WishlistItem, type PhysiqueEntry, type VaultLock,
   type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertBodyFatScan, type InsertWishlistItem, type InsertPhysiqueEntry
 } from "@shared/schema";
 import { eq, and, desc, sql, asc } from "drizzle-orm";
@@ -81,6 +81,11 @@ export interface IStorage {
   createPhysiqueEntry(entry: InsertPhysiqueEntry & { userId: string }): Promise<PhysiqueEntry>;
   updatePhysiqueEntry(id: number, updates: Partial<PhysiqueEntry>): Promise<PhysiqueEntry>;
   deletePhysiqueEntry(id: number): Promise<void>;
+
+  // Vault lock (per-user password gate for private sections)
+  getVaultLock(userId: string): Promise<VaultLock | undefined>;
+  upsertVaultLock(userId: string, passwordHash: string, hint?: string | null): Promise<VaultLock>;
+  deleteVaultLock(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -395,6 +400,26 @@ export class DatabaseStorage implements IStorage {
 
   async deletePhysiqueEntry(id: number): Promise<void> {
     await db.delete(physiqueEntries).where(eq(physiqueEntries.id, id));
+  }
+
+  async getVaultLock(userId: string): Promise<VaultLock | undefined> {
+    const [record] = await db.select().from(vaultLocks).where(eq(vaultLocks.userId, userId));
+    return record;
+  }
+
+  async upsertVaultLock(userId: string, passwordHash: string, hint: string | null = null): Promise<VaultLock> {
+    const [record] = await db.insert(vaultLocks)
+      .values({ userId, passwordHash, hint })
+      .onConflictDoUpdate({
+        target: vaultLocks.userId,
+        set: { passwordHash, hint, updatedAt: new Date() },
+      })
+      .returning();
+    return record;
+  }
+
+  async deleteVaultLock(userId: string): Promise<void> {
+    await db.delete(vaultLocks).where(eq(vaultLocks.userId, userId));
   }
 }
 

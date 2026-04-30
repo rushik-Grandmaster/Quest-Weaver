@@ -47,6 +47,14 @@ Preferred communication style: Simple, everyday language.
 - Frontend hides owner-only nav items via `useAuth().user.id === OWNER_USER_ID`.
 - Defense-in-depth: page also renders a "private archive" lock screen if a non-owner navigates directly to `/physique`.
 
+### Vault Password (per-user lock)
+- `vaultLocks` table (`shared/schema.ts`): per-user `passwordHash` (`salt:hash` scrypt), optional `hint`.
+- Backend (`server/routes.ts`): scrypt `hashPassword`/`verifyPassword`; `requireVaultUnlocked` middleware (no-op when no lock set, else requires `req.session.vaultUnlocked === userId`, returns **423** if locked).
+- Routes: `GET /api/vault/status`, `POST /api/vault/set` (auto-unlocks; requires currentPassword to change), `POST /api/vault/unlock` (350ms throttle on failure), `POST /api/vault/lock`.
+- Gates applied to **diary** (list/create/update/delete) and **physique** (list/create/update/delete).
+- Frontend `client/src/components/VaultGate.tsx` wraps `/diary` and `/physique` routes in `App.tsx`. Shows animated **setup** screen on first use (amber theme), **unlock** screen otherwise (indigo theme, shake on wrong password). Exports `useVaultStatus()` and `useLockVault()`.
+- Navigation footer shows a "SEAL VAULT" button when vault is unlocked.
+
 ### Navigation
 - `client/src/components/Navigation.tsx` — categorized sidebar (desktop) + bottom dock (mobile) + ⌘K command palette overlay.
 - Nav items grouped: MAIN, TRAINING, BODY, ECONOMY, MIND, STATUS.

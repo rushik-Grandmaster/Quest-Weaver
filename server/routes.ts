@@ -11,10 +11,28 @@ import { ACHIEVEMENTS } from "@shared/achievements";
 import { applyXp, getRank, xpForLevel } from "@shared/levels";
 import { insertPhysiqueEntrySchema } from "@shared/schema";
 import OpenAI from "openai";
+import crypto from "crypto";
 
 // === OWNER-ONLY (private features) ===
 // Only Rushik (rushi30283@gmail.com / id 26147528) may access flagged routes.
 const OWNER_USER_ID = "26147528";
+
+// === VAULT password helpers (scrypt) ===
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+function verifyPassword(password: string, stored: string): boolean {
+  const [salt, hash] = (stored || "").split(":");
+  if (!salt || !hash) return false;
+  try {
+    const candidate = crypto.scryptSync(password, salt, 64);
+    const known = Buffer.from(hash, "hex");
+    return known.length === candidate.length &&
+      crypto.timingSafeEqual(known, candidate);
+  } catch { return false; }
+}
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -52,14 +70,98 @@ export async function registerRoutes(
     next();
   };
 
+  // Vault gate — requires session.vaultUnlocked === userId IF the user has set a vault password.
+  // If no password set, allows through (vault is opt-in).
+  const requireVaultUnlocked = async (req: any, res: any, next: any) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const userId = req.user.claims.sub;
+    try {
+      const lock = await storage.getVaultLock(userId);
+      if (!lock) return next(); // vault not set → no gate
+      if (req.session?.vaultUnlocked === userId) return next();
+      return res.status(423).json({ message: "Vault locked", code: "VAULT_LOCKED" });
+    } catch (err) {
+      console.error("Vault gate error:", err);
+      return res.status(500).json({ message: "Vault check failed" });
+    }
+  };
+
+  // === VAULT routes ===
+  app.get("/api/vault/status", requireAuth, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const lock = await storage.getVaultLock(userId);
+    res.json({
+      isSet: !!lock,
+      isUnlocked: req.session?.vaultUnlocked === userId,
+      hint: lock?.hint ?? null,
+    });
+  });
+
+  app.post("/api/vault/set", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { newPassword, currentPassword, hint } = req.body ?? {};
+      if (typeof newPassword !== "string" || newPassword.length < 4) {
+        return res.status(400).json({ message: "Password must be at least 4 characters." });
+      }
+      if (newPassword.length > 128) {
+        return res.status(400).json({ message: "Password too long." });
+      }
+      const existing = await storage.getVaultLock(userId);
+      if (existing) {
+        if (typeof currentPassword !== "string" || !verifyPassword(currentPassword, existing.passwordHash)) {
+          return res.status(403).json({ message: "Current password is incorrect." });
+        }
+      }
+      const hash = hashPassword(newPassword);
+      const cleanHint = typeof hint === "string" ? hint.slice(0, 80).trim() || null : null;
+      await storage.upsertVaultLock(userId, hash, cleanHint);
+      // Auto-unlock the session after setting a new password
+      (req.session as any).vaultUnlocked = userId;
+      req.session.save?.(() => res.json({ ok: true, isSet: true, isUnlocked: true }));
+    } catch (err: any) {
+      console.error("Vault set error:", err?.message ?? err);
+      res.status(500).json({ message: "Failed to set vault password." });
+    }
+  });
+
+  app.post("/api/vault/unlock", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { password } = req.body ?? {};
+      if (typeof password !== "string" || !password) {
+        return res.status(400).json({ message: "Password required." });
+      }
+      const lock = await storage.getVaultLock(userId);
+      if (!lock) return res.status(400).json({ message: "No vault is set." });
+      if (!verifyPassword(password, lock.passwordHash)) {
+        // Tiny timing buffer to discourage rapid guessing
+        await new Promise((r) => setTimeout(r, 350));
+        return res.status(401).json({ message: "Wrong cipher key." });
+      }
+      (req.session as any).vaultUnlocked = userId;
+      req.session.save?.(() => res.json({ ok: true, isUnlocked: true }));
+    } catch (err: any) {
+      console.error("Vault unlock error:", err?.message ?? err);
+      res.status(500).json({ message: "Unlock failed." });
+    }
+  });
+
+  app.post("/api/vault/lock", requireAuth, (req: any, res) => {
+    if (req.session) (req.session as any).vaultUnlocked = null;
+    req.session?.save?.(() => res.json({ ok: true, isUnlocked: false }));
+  });
+
   // === PHYSIQUE (private — owner only) ===
-  app.get("/api/physique", requireOwner, async (req: any, res) => {
+  app.get("/api/physique", requireOwner, requireVaultUnlocked, async (req: any, res) => {
     const userId = req.user.claims.sub;
     const entries = await storage.getPhysiqueEntries(userId);
     res.json(entries);
   });
 
-  app.post("/api/physique", requireOwner, async (req: any, res) => {
+  app.post("/api/physique", requireOwner, requireVaultUnlocked, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const parsed = insertPhysiqueEntrySchema.parse(req.body);
@@ -79,7 +181,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/physique/:id", requireOwner, async (req: any, res) => {
+  app.patch("/api/physique/:id", requireOwner, requireVaultUnlocked, async (req: any, res) => {
     try {
       const id = Number(req.params.id);
       const existing = await storage.getPhysiqueEntry(id);
@@ -99,7 +201,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/physique/:id", requireOwner, async (req: any, res) => {
+  app.delete("/api/physique/:id", requireOwner, requireVaultUnlocked, async (req: any, res) => {
     const id = Number(req.params.id);
     const existing = await storage.getPhysiqueEntry(id);
     if (!existing || existing.userId !== req.user.claims.sub) {
@@ -329,12 +431,12 @@ export async function registerRoutes(
   });
 
   // Diary
-  app.get(api.diary.list.path, requireAuth, async (req: any, res) => {
+  app.get(api.diary.list.path, requireAuth, requireVaultUnlocked, async (req: any, res) => {
     const entries = await storage.getDiaryEntries(req.user.claims.sub);
     res.json(entries);
   });
 
-  app.post(api.diary.create.path, requireAuth, async (req: any, res) => {
+  app.post(api.diary.create.path, requireAuth, requireVaultUnlocked, async (req: any, res) => {
     try {
       const parsed = api.diary.create.input.parse(req.body);
       const input = {
@@ -353,7 +455,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch(api.diary.update.path, requireAuth, async (req: any, res) => {
+  app.patch(api.diary.update.path, requireAuth, requireVaultUnlocked, async (req: any, res) => {
     const entry = await storage.getDiaryEntry(Number(req.params.id));
     if (!entry || entry.userId !== req.user.claims.sub) {
       return res.status(404).json({ message: "Entry not found" });
@@ -362,7 +464,7 @@ export async function registerRoutes(
     res.json(updated);
   });
 
-  app.delete(api.diary.delete.path, requireAuth, async (req: any, res) => {
+  app.delete(api.diary.delete.path, requireAuth, requireVaultUnlocked, async (req: any, res) => {
     const entry = await storage.getDiaryEntry(Number(req.params.id));
     if (!entry || entry.userId !== req.user.claims.sub) {
       return res.status(404).json({ message: "Entry not found" });
