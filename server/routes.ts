@@ -9,7 +9,12 @@ import { registerImageRoutes } from "./replit_integrations/image";
 import { checkAndAwardAchievements } from "./checkAchievements";
 import { ACHIEVEMENTS } from "@shared/achievements";
 import { applyXp, getRank, xpForLevel } from "@shared/levels";
+import { insertPhysiqueEntrySchema } from "@shared/schema";
 import OpenAI from "openai";
+
+// === OWNER-ONLY (private features) ===
+// Only Rushik (rushi30283@gmail.com / id 26147528) may access flagged routes.
+const OWNER_USER_ID = "26147528";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -35,6 +40,79 @@ export async function registerRoutes(
     }
     next();
   };
+
+  // Strict owner-only gate (private routes — anyone else gets 403)
+  const requireOwner = (req: any, res: any, next: any) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (req.user?.claims?.sub !== OWNER_USER_ID) {
+      return res.status(403).json({ message: "Forbidden — private resource" });
+    }
+    next();
+  };
+
+  // === PHYSIQUE (private — owner only) ===
+  app.get("/api/physique", requireOwner, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const entries = await storage.getPhysiqueEntries(userId);
+    res.json(entries);
+  });
+
+  app.post("/api/physique", requireOwner, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const parsed = insertPhysiqueEntrySchema.parse(req.body);
+      // Reject anything that isn't a base64 image data URL
+      if (!parsed.photoUrl?.startsWith("data:image/")) {
+        return res.status(400).json({ message: "photoUrl must be a base64 image data URL" });
+      }
+      // Cap photo payload at ~4 MB of base64 to keep DB reasonable
+      if (parsed.photoUrl.length > 5_500_000) {
+        return res.status(413).json({ message: "Photo too large — please use a smaller image." });
+      }
+      const created = await storage.createPhysiqueEntry({ ...parsed, userId });
+      res.status(201).json(created);
+    } catch (err: any) {
+      console.error("Physique create error:", err?.message ?? err);
+      res.status(400).json({ message: err?.message ?? "Invalid physique entry" });
+    }
+  });
+
+  app.patch("/api/physique/:id", requireOwner, async (req: any, res) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = await storage.getPhysiqueEntry(id);
+      if (!existing || existing.userId !== req.user.claims.sub) {
+        return res.status(404).json({ message: "Not found" });
+      }
+      const updates: any = {};
+      if (req.body.weight !== undefined)   updates.weight   = req.body.weight === null ? null : Number(req.body.weight);
+      if (req.body.bodyFat !== undefined)  updates.bodyFat  = req.body.bodyFat === null ? null : Number(req.body.bodyFat);
+      if (req.body.notes !== undefined)    updates.notes    = req.body.notes;
+      if (req.body.pose !== undefined)     updates.pose     = req.body.pose;
+      if (req.body.photoDate !== undefined) updates.photoDate = new Date(req.body.photoDate);
+      const updated = await storage.updatePhysiqueEntry(id, updates);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(400).json({ message: err?.message ?? "Update failed" });
+    }
+  });
+
+  app.delete("/api/physique/:id", requireOwner, async (req: any, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getPhysiqueEntry(id);
+    if (!existing || existing.userId !== req.user.claims.sub) {
+      return res.status(404).json({ message: "Not found" });
+    }
+    await storage.deletePhysiqueEntry(id);
+    res.status(204).end();
+  });
+
+  // Lets the frontend ask "am I the owner?" without leaking the ID
+  app.get("/api/physique/_owner-check", requireAuth, async (req: any, res) => {
+    res.json({ isOwner: req.user?.claims?.sub === OWNER_USER_ID });
+  });
 
   // User Stats
   app.get(api.userStats.get.path, requireAuth, async (req: any, res) => {

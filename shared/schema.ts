@@ -1,5 +1,5 @@
 export * from "./models/auth";
-import { pgTable, text, serial, integer, boolean, timestamp, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, varchar, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "./models/auth";
@@ -251,6 +251,29 @@ export const insertWishlistItemSchema = createInsertSchema(wishlistItems).omit({
   category: z.enum(["electronics","clothing","books","fitness","gaming","home","food","beauty","other"]).default("other"),
 });
 
+// Private physique tracking (owner-only)
+export const physiqueEntries = pgTable("physique_entries", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  photoUrl: text("photo_url").notNull(),       // base64 data URL
+  weight: real("weight"),                       // kg
+  bodyFat: real("body_fat"),                    // percent
+  pose: text("pose").default("front").notNull(),// 'front' | 'side' | 'back' | 'flex' | 'other'
+  notes: text("notes"),
+  photoDate: timestamp("photo_date").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertPhysiqueEntrySchema = createInsertSchema(physiqueEntries).omit({
+  id: true, userId: true, createdAt: true,
+}).extend({
+  photoDate: z.coerce.date().optional(),
+  pose: z.enum(["front","side","back","flex","other"]).default("front"),
+  weight: z.number().positive().max(500).optional().nullable(),
+  bodyFat: z.number().min(0).max(80).optional().nullable(),
+  notes: z.string().max(500).optional().nullable(),
+});
+
 // === TYPES ===
 export type UserStats = typeof userStats.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
@@ -264,6 +287,7 @@ export type UserAchievement = typeof userAchievements.$inferSelect;
 export type ChatSession = typeof chatSessions.$inferSelect;
 export type AiChatMessage = typeof aiChatMessages.$inferSelect;
 export type WishlistItem = typeof wishlistItems.$inferSelect;
+export type PhysiqueEntry = typeof physiqueEntries.$inferSelect;
 
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type InsertShopItem = z.infer<typeof insertShopItemSchema>;
@@ -271,3 +295,4 @@ export type InsertScheduleItem = z.infer<typeof insertScheduleItemSchema>;
 export type InsertDiaryEntry = z.infer<typeof insertDiaryEntrySchema>;
 export type InsertBodyFatScan = z.infer<typeof insertBodyFatScanSchema>;
 export type InsertWishlistItem = z.infer<typeof insertWishlistItemSchema>;
+export type InsertPhysiqueEntry = z.infer<typeof insertPhysiqueEntrySchema>;

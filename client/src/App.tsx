@@ -30,6 +30,7 @@ import Wishlist from "@/pages/Wishlist";
 import Achievements from "@/pages/Achievements";
 import BodyFatAnalysis from "@/pages/BodyFatAnalysis";
 import Ranks from "@/pages/Ranks";
+import Physique from "@/pages/Physique";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 
@@ -119,6 +120,7 @@ function Router() {
         <Route path="/wishlist" component={Wishlist} />
         <Route path="/achievements" component={Achievements} />
         <Route path="/ranks" component={Ranks} />
+        <Route path="/physique" component={Physique} />
         <Route component={NotFound} />
       </Switch>
     </PrivateLayout>

@@ -2,9 +2,9 @@ import { db } from "./db";
 import {
   users, userStats, tasks, shopItems, inventory, scheduleItems, diaryEntries,
   aiChatMessages, conversations, messages, bodyFatScans, progressTimers, userAchievements,
-  chatSessions, wishlistItems,
-  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement, type ChatSession, type AiChatMessage, type WishlistItem,
-  type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertBodyFatScan, type InsertWishlistItem
+  chatSessions, wishlistItems, physiqueEntries,
+  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement, type ChatSession, type AiChatMessage, type WishlistItem, type PhysiqueEntry,
+  type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertBodyFatScan, type InsertWishlistItem, type InsertPhysiqueEntry
 } from "@shared/schema";
 import { eq, and, desc, sql, asc } from "drizzle-orm";
 
@@ -74,6 +74,13 @@ export interface IStorage {
   getWishlistItems(userId: string): Promise<WishlistItem[]>;
   createWishlistItem(item: InsertWishlistItem): Promise<WishlistItem>;
   deleteWishlistItem(id: number): Promise<void>;
+
+  // Physique (owner-only)
+  getPhysiqueEntries(userId: string): Promise<PhysiqueEntry[]>;
+  getPhysiqueEntry(id: number): Promise<PhysiqueEntry | undefined>;
+  createPhysiqueEntry(entry: InsertPhysiqueEntry & { userId: string }): Promise<PhysiqueEntry>;
+  updatePhysiqueEntry(id: number, updates: Partial<PhysiqueEntry>): Promise<PhysiqueEntry>;
+  deletePhysiqueEntry(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -358,6 +365,36 @@ export class DatabaseStorage implements IStorage {
 
   async deleteWishlistItem(id: number): Promise<void> {
     await db.delete(wishlistItems).where(eq(wishlistItems.id, id));
+  }
+
+  async getPhysiqueEntries(userId: string): Promise<PhysiqueEntry[]> {
+    return await db.select().from(physiqueEntries)
+      .where(eq(physiqueEntries.userId, userId))
+      .orderBy(desc(physiqueEntries.photoDate));
+  }
+
+  async getPhysiqueEntry(id: number): Promise<PhysiqueEntry | undefined> {
+    const [record] = await db.select().from(physiqueEntries).where(eq(physiqueEntries.id, id));
+    return record;
+  }
+
+  async createPhysiqueEntry(entry: InsertPhysiqueEntry & { userId: string }): Promise<PhysiqueEntry> {
+    const [record] = await db.insert(physiqueEntries)
+      .values(entry as any)
+      .returning();
+    return record;
+  }
+
+  async updatePhysiqueEntry(id: number, updates: Partial<PhysiqueEntry>): Promise<PhysiqueEntry> {
+    const [record] = await db.update(physiqueEntries)
+      .set(updates)
+      .where(eq(physiqueEntries.id, id))
+      .returning();
+    return record;
+  }
+
+  async deletePhysiqueEntry(id: number): Promise<void> {
+    await db.delete(physiqueEntries).where(eq(physiqueEntries.id, id));
   }
 }
 

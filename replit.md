@@ -40,6 +40,17 @@ Preferred communication style: Simple, everyday language.
 - **inventory**: Items owned by users with usage tracking
 - **scheduleItems**: Daily planner events with start/end times
 - **diaryEntries**: Journal entries with mood tracking
+- **physiqueEntries** (private/owner-only): Progress photos with optional weight, body fat, pose, notes, and dated timeline. Photos stored as base64 data URLs in PostgreSQL (compressed client-side to ~1280px JPEG).
+
+### Owner-Only / Private Routes
+- A `requireOwner` middleware in `server/routes.ts` restricts certain endpoints (`/api/physique/*`) to user ID `26147528` (rushi30283@gmail.com). Anyone else gets a 403.
+- Frontend hides owner-only nav items via `useAuth().user.id === OWNER_USER_ID`.
+- Defense-in-depth: page also renders a "private archive" lock screen if a non-owner navigates directly to `/physique`.
+
+### Navigation
+- `client/src/components/Navigation.tsx` — categorized sidebar (desktop) + bottom dock (mobile) + ⌘K command palette overlay.
+- Nav items grouped: MAIN, TRAINING, BODY, ECONOMY, MIND, STATUS.
+- Owner-only entries are tagged with a lock icon and hidden from non-owners.
 
 ### Build System
 - **Development**: Vite dev server with HMR, proxied through Express
