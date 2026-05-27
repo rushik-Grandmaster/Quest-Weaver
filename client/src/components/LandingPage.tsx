@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
 
 const PARTICLES = Array.from({ length: 30 }, (_, i) => ({
   id: i,
@@ -72,6 +73,10 @@ function SystemText({ text, onDone }: { text: string; onDone?: () => void }) {
 }
 
 export function LandingPage({ onEnter }: { onEnter: () => void }) {
+  const { user } = useAuth();
+  const playerName = user?.firstName
+    ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1)
+    : "Player";
   const [phase, setPhase] = useState<"boot" | "system" | "reveal" | "ready">("boot");
   const [systemLine, setSystemLine] = useState(0);
   const [showGate, setShowGate] = useState(false);
@@ -304,7 +309,7 @@ export function LandingPage({ onEnter }: { onEnter: () => void }) {
                 ◈ STATUS WINDOW
               </div>
               {[
-                { label: "Player", value: "Rushik Sama" },
+                { label: "Player", value: playerName },
                 { label: "Rank", value: "E → ?" },
                 { label: "Title", value: "The One Who Levels Up" },
                 { label: "System", value: "LifeRPG v2.0  ✓ Ready" },
