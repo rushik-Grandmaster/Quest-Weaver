@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Mic, MicOff, PhoneOff, Loader2, Sparkles, Volume2,
@@ -63,6 +64,10 @@ function Brackets({ color = "rgba(99,102,241,0.4)" }: { color?: string }) {
 
 /* ═════════════════════════════════════════════════════ */
 export default function LuminousVoice() {
+  const { user } = useAuth();
+  const userName = user?.firstName
+    ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1)
+    : "Operator";
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
@@ -195,7 +200,7 @@ export default function LuminousVoice() {
     if (window.speechSynthesis) {
       try {
         window.speechSynthesis.cancel();
-        const utt = new SpeechSynthesisUtterance("Hello Rushik Sama. This is your voice.");
+        const utt = new SpeechSynthesisUtterance(`Hello ${userName}. This is your voice.`);
         utt.voice = voice;
         utt.lang = voice.lang;
         utt.rate = 1.0;
@@ -211,7 +216,7 @@ export default function LuminousVoice() {
     if (!window.speechSynthesis) return;
     try {
       window.speechSynthesis.cancel();
-      const utt = new SpeechSynthesisUtterance("Greetings, Rushik Sama. I am Luminous.");
+      const utt = new SpeechSynthesisUtterance(`Greetings, ${userName}. I am Luminous.`);
       utt.voice = voice;
       utt.lang = voice.lang;
       utt.rate = 1.0;

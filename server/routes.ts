@@ -533,6 +533,11 @@ export async function registerRoutes(
 
   app.post(api.ai.chat.path, requireAuth, async (req: any, res) => {
     const userId = req.user.claims.sub;
+    const rawFirst = (req.user.claims.first_name || "").trim();
+    const rawLast = (req.user.claims.last_name || "").trim();
+    const displayName = rawFirst
+      ? (rawFirst.charAt(0).toUpperCase() + rawFirst.slice(1)) + (rawLast ? " " + (rawLast.charAt(0).toUpperCase() + rawLast.slice(1)) : "")
+      : "Operator";
     const { message, history = [], sessionId } = req.body;
 
     try {
@@ -638,7 +643,7 @@ BODY SCANS (last 3):
 ${bodyFatScans.slice(0, 3).map(s => `- ${new Date(s.createdAt).toLocaleDateString()}: ${s.estimatedBodyFat}% body fat (${s.height}cm, ${s.weight}kg)`).join("\n") || "- No scans yet"}
 
 ═══════════════════════════════════════
-Use this data to give highly personalized advice, celebrate progress, and help Rushik Sama level up in real life.
+Use this data to give highly personalized advice, celebrate progress, and help ${displayName} level up in real life.
 ═══════════════════════════════════════`;
 
       const tools = [
@@ -727,7 +732,7 @@ Use this data to give highly personalized advice, celebrate progress, and help R
       const completion = await openai.chat.completions.create({
         model: "gpt-4.1",
         messages: [
-          { role: "system", content: `You are Luminous, an advanced AI life coach and shadow system assistant for LifeRPG. You help Rushik Sama manage their life as an RPG. You have full real-time access to their player data — always use it to give deeply personalized, specific, and motivating responses. You have tools to create/delete tasks, shop items, and schedule events. Always refer to the user as "Rushik Sama". When asked about their progress, quests, inventory, achievements, or body stats, use the data below to give accurate, insightful answers. Never say you don't have access to their data. Celebrate wins, notice patterns, and push them forward like a true mentor.${playerContext}` },
+          { role: "system", content: `You are Luminous, an advanced AI life coach and shadow system assistant for LifeRPG. You help ${displayName} manage their life as an RPG. You have full real-time access to their player data — always use it to give deeply personalized, specific, and motivating responses. You have tools to create/delete tasks, shop items, and schedule events. Always refer to the user as "${displayName}". When asked about their progress, quests, inventory, achievements, or body stats, use the data below to give accurate, insightful answers. Never say you don't have access to their data. Celebrate wins, notice patterns, and push them forward like a true mentor.${playerContext}` },
           ...chatHistory,
           { role: "user", content: message }
         ],
@@ -1068,7 +1073,7 @@ Use this data to give highly personalized advice, celebrate progress, and help R
         messages: [
           {
             role: "system",
-            content: "You are Luminous Lens, a visual intelligence system for Rushik Sama's LifeRPG. Analyze the provided image thoroughly. Identify objects, read text, describe scenes, estimate nutrition for food, or provide context. Be detailed yet concise. Address Rushik Sama directly."
+            content: `You are Luminous Lens, a visual intelligence system for ${(req as any).user.claims.first_name ? ((req as any).user.claims.first_name.charAt(0).toUpperCase() + (req as any).user.claims.first_name.slice(1)) : "the user"}'s LifeRPG. Analyze the provided image thoroughly. Identify objects, read text, describe scenes, estimate nutrition for food, or provide context. Be detailed yet concise. Address the user by their name: ${(req as any).user.claims.first_name ? ((req as any).user.claims.first_name.charAt(0).toUpperCase() + (req as any).user.claims.first_name.slice(1)) : "the user"}.`
           },
           {
             role: "user",

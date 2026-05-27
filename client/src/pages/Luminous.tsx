@@ -354,7 +354,7 @@ export default function Luminous() {
                     </motion.div>
                     <div>
                       <p className="font-bold text-base" style={{ color: "rgba(199,210,254,0.9)", fontFamily: "var(--font-display)" }}>
-                        How can I help you, Rushik Sama?
+                        How can I help you, {user?.firstName ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1) : "Operator"}?
                       </p>
                       <p className="text-xs mt-1" style={{ color: "rgba(100,116,139,0.6)", fontFamily: "var(--font-mono)" }}>
                         I have full access to your player profile, quests, and history.
