@@ -1,0 +1,25 @@
+Since you built the core of Quest Weaver, let's upgrade it! We are adding a Reward Enforcement Gateway and a Screen Time Dashboard to the web app. 
+
+Please read our existing code (especially the Shop component and wherever user points/gold are stored) and implement the following features:
+
+1. REWARD GATEWAY & LAUNCHER LOGIC:
+- Modify the Shop so that purchasing a reward (like "10 mins of YouTube") doesn't just deduct points; it must set an active session timer (e.g., 10 minutes) in our app state/database.
+- Create a new "Gateway" page. If a session is active, show a "Launch Reward" button that opens the reward link (like youtube.com) in a new tab.
+- Use a background interval timer to count down. If a user refreshes the page, the timer must persist (use LocalStorage or the existing backend database).
+- When the timer hits 0, automatically revoke access, clear the session, and show a "System Locked" state.
+
+2. SOLO LEVELING STYLE SCREEN TIME PAGE:
+- Create a new route/page called "System Monitor" or "Screen Time".
+- Style it like the glowing, futuristic blue/purple Solo Leveling status screens.
+- Display:
+  * Active Countdowns: Show exactly how many minutes are left for any purchased rewards.
+  * Stats: A breakdown of how much entertainment time they have earned vs. used today.
+- Add a "System Override" button that instantly clears all active timers if the user needs to force themselves to grind real-life quests.
+
+3. "CLEARSPACE" INTERVENTION MODAL:
+- When a user clicks "Buy" on an entertainment reward in the Shop, do not let them buy it instantly. Intercept it with a "Mindfulness Intervention" modal.
+- Show an animated pulsing circle that guides them through a 4-second deep breath.
+- Display a harsh System prompt: "[WARNING: The System detects an impulse to rest. Take a deep breath. Have you truly pushed past your limits today?]"
+- Only reveal the final "Confirm Purchase" button AFTER the breathing animation finishes.
+
+Please integrate this smoothly into our current codebase, updating our navigation menu so I can easily click between the Quest board, the Shop, and this new Screen Time/System Monitor page.
