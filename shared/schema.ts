@@ -39,6 +39,8 @@ export const shopItems = pgTable("shop_items", {
   cost: integer("cost").notNull(),
   category: text("category").default("general").notNull(), // 'custom', 'system'
   icon: text("icon").default("gift"),
+  url: text("url"),                         // launch URL for screen-time rewards
+  durationMinutes: integer("duration_minutes"), // session timer (null = no timer)
 });
 
 export const inventory = pgTable("inventory", {
@@ -251,6 +253,23 @@ export const insertWishlistItemSchema = createInsertSchema(wishlistItems).omit({
   category: z.enum(["electronics","clothing","books","fitness","gaming","home","food","beauty","other"]).default("other"),
 });
 
+// Reward sessions — active screen-time countdown timers created on shop purchase
+export const rewardSessions = pgTable("reward_sessions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  shopItemId: integer("shop_item_id").references(() => shopItems.id, { onDelete: "set null" }),
+  itemName: text("item_name").notNull(),
+  itemUrl: text("item_url"),
+  minutesTotal: integer("minutes_total").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const rewardSessionsRelations = relations(rewardSessions, ({ one }) => ({
+  user: one(users, { fields: [rewardSessions.userId], references: [users.id] }),
+  shopItem: one(shopItems, { fields: [rewardSessions.shopItemId], references: [shopItems.id] }),
+}));
+
 // Vault password — gates access to private sections (diary + physique) per-user
 export const vaultLocks = pgTable("vault_locks", {
   userId: varchar("user_id").primaryKey().references(() => users.id),
@@ -298,6 +317,10 @@ export type AiChatMessage = typeof aiChatMessages.$inferSelect;
 export type WishlistItem = typeof wishlistItems.$inferSelect;
 export type PhysiqueEntry = typeof physiqueEntries.$inferSelect;
 export type VaultLock = typeof vaultLocks.$inferSelect;
+export type RewardSession = typeof rewardSessions.$inferSelect;
+
+export const insertRewardSessionSchema = createInsertSchema(rewardSessions).omit({ id: true, createdAt: true });
+export type InsertRewardSession = z.infer<typeof insertRewardSessionSchema>;
 
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type InsertShopItem = z.infer<typeof insertShopItemSchema>;

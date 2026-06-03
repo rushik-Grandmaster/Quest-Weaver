@@ -355,10 +355,36 @@ export async function registerRoutes(
     const updatedStats = await storage.updateUserStats(userId, { points: newPoints });
     const inventoryItem = await storage.addToInventory(userId, item.id);
 
+    // If this item has a session timer, create an active reward session
+    let rewardSession = null;
+    if (item.durationMinutes && item.durationMinutes > 0) {
+      const expiresAt = new Date(Date.now() + item.durationMinutes * 60 * 1000);
+      rewardSession = await storage.createRewardSession({
+        userId,
+        shopItemId: item.id,
+        itemName: item.name,
+        itemUrl: item.url ?? null,
+        minutesTotal: item.durationMinutes,
+        expiresAt,
+      });
+    }
+
     // Check shop achievements
     const newAchievements = await checkAndAwardAchievements(userId, { type: "shop_purchase" });
 
-    res.json({ item: inventoryItem, stats: updatedStats, newAchievements });
+    res.json({ item: inventoryItem, stats: updatedStats, newAchievements, rewardSession });
+  });
+
+  // Reward Sessions (screen-time countdown timers)
+  app.get("/api/reward-sessions", requireAuth, async (req: any, res) => {
+    const sessions = await storage.getRewardSessions(req.user.claims.sub);
+    res.json(sessions);
+  });
+
+  app.delete("/api/reward-sessions/:id", requireAuth, async (req: any, res) => {
+    const id = Number(req.params.id);
+    await storage.deleteRewardSession(id);
+    res.status(204).end();
   });
 
   // Inventory

@@ -2,11 +2,11 @@ import { db } from "./db";
 import {
   users, userStats, tasks, shopItems, inventory, scheduleItems, diaryEntries,
   aiChatMessages, conversations, messages, bodyFatScans, progressTimers, userAchievements,
-  chatSessions, wishlistItems, physiqueEntries, vaultLocks,
-  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement, type ChatSession, type AiChatMessage, type WishlistItem, type PhysiqueEntry, type VaultLock,
-  type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertBodyFatScan, type InsertWishlistItem, type InsertPhysiqueEntry
+  chatSessions, wishlistItems, physiqueEntries, vaultLocks, rewardSessions,
+  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement, type ChatSession, type AiChatMessage, type WishlistItem, type PhysiqueEntry, type VaultLock, type RewardSession,
+  type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertBodyFatScan, type InsertWishlistItem, type InsertPhysiqueEntry, type InsertRewardSession
 } from "@shared/schema";
-import { eq, and, desc, sql, asc } from "drizzle-orm";
+import { eq, and, desc, sql, asc, gt } from "drizzle-orm";
 
 export interface IStorage {
   // User Stats
@@ -86,6 +86,11 @@ export interface IStorage {
   getVaultLock(userId: string): Promise<VaultLock | undefined>;
   upsertVaultLock(userId: string, passwordHash: string, hint?: string | null): Promise<VaultLock>;
   deleteVaultLock(userId: string): Promise<void>;
+
+  // Reward sessions (screen-time countdown timers)
+  getRewardSessions(userId: string): Promise<RewardSession[]>;
+  createRewardSession(data: InsertRewardSession): Promise<RewardSession>;
+  deleteRewardSession(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -420,6 +425,24 @@ export class DatabaseStorage implements IStorage {
 
   async deleteVaultLock(userId: string): Promise<void> {
     await db.delete(vaultLocks).where(eq(vaultLocks.userId, userId));
+  }
+
+  async getRewardSessions(userId: string): Promise<RewardSession[]> {
+    return await db.select().from(rewardSessions)
+      .where(and(
+        eq(rewardSessions.userId, userId),
+        gt(rewardSessions.expiresAt, new Date())
+      ))
+      .orderBy(asc(rewardSessions.expiresAt));
+  }
+
+  async createRewardSession(data: InsertRewardSession): Promise<RewardSession> {
+    const [record] = await db.insert(rewardSessions).values(data as any).returning();
+    return record;
+  }
+
+  async deleteRewardSession(id: number): Promise<void> {
+    await db.delete(rewardSessions).where(eq(rewardSessions.id, id));
   }
 }
 

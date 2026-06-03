@@ -1,0 +1,2 @@
+- [Screen Time & ClearSpace features](screen-time-clearspace.md) — rewardSessions table gates screen-time shop items; ClearSpace modal intercepts purchase before gold is deducted.
+- [Shop item schema extension](shop-item-schema.md) — shopItems has url + durationMinutes columns; items with durationMinutes > 0 trigger ClearSpace and create a rewardSession on buy.

@@ -32,6 +32,7 @@ import Achievements from "@/pages/Achievements";
 import BodyFatAnalysis from "@/pages/BodyFatAnalysis";
 import Ranks from "@/pages/Ranks";
 import Physique from "@/pages/Physique";
+import ScreenTime from "@/pages/ScreenTime";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 
@@ -121,6 +122,7 @@ function Router() {
         <Route path="/timer" component={CountdownTimer} />
         <Route path="/quest-timer" component={QuestTimer} />
         <Route path="/wishlist" component={Wishlist} />
+        <Route path="/screen-time" component={ScreenTime} />
         <Route path="/achievements" component={Achievements} />
         <Route path="/ranks" component={Ranks} />
         <Route path="/physique">

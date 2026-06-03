@@ -6,7 +6,7 @@ import {
   LayoutDashboard, CheckSquare, ShoppingBag, Calendar,
   LogOut, Backpack, BookMarked, Sparkles, Flame, Activity,
   Timer, Trophy, Shield, Swords, ShoppingCart, Lock,
-  Grid3x3, Search, X, Home as HomeIcon, ChevronRight, ShieldOff,
+  Grid3x3, Search, X, Home as HomeIcon, ChevronRight, ShieldOff, Monitor,
 } from "lucide-react";
 import { useVaultStatus, useLockVault } from "@/components/VaultGate";
 
@@ -33,9 +33,10 @@ const ALL_ITEMS: NavItem[] = [
   { href: "/body-fat",    label: "Body Scan",      icon: Activity, group: "BODY" },
   { href: "/physique",    label: "Physique Vault", icon: Lock,     group: "BODY", ownerOnly: true },
   // ECONOMY
-  { href: "/shop",        label: "Shop",      icon: ShoppingBag,  group: "ECONOMY" },
-  { href: "/inventory",   label: "Inventory", icon: Backpack,     group: "ECONOMY" },
-  { href: "/wishlist",    label: "Wishlist",  icon: ShoppingCart, group: "ECONOMY" },
+  { href: "/shop",        label: "Shop",        icon: ShoppingBag,  group: "ECONOMY" },
+  { href: "/screen-time", label: "Screen Time", icon: Monitor,      group: "ECONOMY" },
+  { href: "/inventory",   label: "Inventory",   icon: Backpack,     group: "ECONOMY" },
+  { href: "/wishlist",    label: "Wishlist",    icon: ShoppingCart, group: "ECONOMY" },
   // MIND
   { href: "/diary",       label: "Diary",    icon: BookMarked, group: "MIND" },
   { href: "/luminous",    label: "Luminous", icon: Sparkles,   group: "MIND" },
