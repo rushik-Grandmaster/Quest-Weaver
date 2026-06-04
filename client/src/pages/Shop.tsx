@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useShopItems, useBuyItem, useCreateShopItem } from "@/hooks/use-shop";
 import { useUserStats } from "@/hooks/use-gamification";
-import { Loader2, Lock, Plus, Coins, ShoppingBag, Sparkles, Gift, Star, Package, Zap, Coffee, Gamepad2, Music, Book, Shirt, Monitor } from "lucide-react";
+import { Loader2, Lock, Plus, Coins, ShoppingBag, Sparkles, Gift, Star, Package, Zap, Coffee, Gamepad2, Music, Book, Shirt, Monitor, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -311,18 +311,176 @@ function ClearSpaceModal({
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ShopItemCard({ item, canAfford, onBuy, isBuying }: {
-  item: any; canAfford: boolean; onBuy: () => void; isBuying: boolean;
+// ── Shop Inspect Overlay ──────────────────────────────────────────────────────
+function ShopInspectOverlay({
+  item, gold, rarity, onBuy, onClose,
+}: {
+  item: any; gold: number; rarity: ReturnType<typeof getItemColor>; onBuy: () => void; onClose: () => void;
+}) {
+  const canAfford = gold >= item.cost;
+  const remaining = gold - item.cost;
+  const isScreenTime = !!(item.durationMinutes && item.durationMinutes > 0);
+
+  return (
+    <motion.div
+      initial={{ y: "100%", opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: "100%", opacity: 0 }}
+      transition={{ type: "spring", stiffness: 420, damping: 38 }}
+      style={{
+        position: "absolute", inset: 0, zIndex: 20,
+        background: "rgba(3,5,18,0.97)",
+        borderRadius: "inherit",
+        padding: "14px",
+        display: "flex", flexDirection: "column", gap: 10,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      {/* Close */}
+      <button
+        onClick={e => { e.stopPropagation(); onClose(); }}
+        data-testid={`button-shop-inspect-close-${item.id}`}
+        style={{
+          position: "absolute", top: 8, right: 8,
+          background: "none", border: "none", cursor: "pointer",
+          color: "rgba(100,116,139,0.6)", padding: 4,
+        }}
+      >
+        <X style={{ width: 13, height: 13 }} />
+      </button>
+
+      {/* Header */}
+      <div>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.25em", color: `${rarity.color}88`, marginBottom: 3 }}>
+          ◈ ITEM ANALYSIS · {rarity.label}
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(199,210,254,0.95)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {item.name}
+        </div>
+      </div>
+
+      {/* What it unlocks */}
+      <div style={{
+        padding: "10px 12px", borderRadius: 4,
+        background: `${rarity.color}08`,
+        border: `1px solid ${rarity.color}22`,
+        flex: 1,
+      }}>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, color: `${rarity.color}66`, letterSpacing: "0.18em", marginBottom: 6 }}>
+          ◇ UNLOCKS
+        </div>
+        <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(148,163,184,0.85)", lineHeight: 1.6, margin: 0 }}>
+          {item.description || "A custom reward."}
+        </p>
+        {isScreenTime && (
+          <div style={{
+            marginTop: 8, padding: "5px 9px", borderRadius: 3,
+            background: "rgba(34,211,238,0.07)", border: "1px solid rgba(34,211,238,0.25)",
+            fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(34,211,238,0.8)",
+          }}>
+            ⏱ {item.durationMinutes} MIN SCREEN-TIME SESSION
+            {item.url && <div style={{ color: "rgba(34,211,238,0.5)", marginTop: 2, fontSize: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.url}</div>}
+          </div>
+        )}
+      </div>
+
+      {/* Gold breakdown */}
+      <div style={{
+        padding: "10px 12px", borderRadius: 4,
+        background: "rgba(245,158,11,0.05)",
+        border: "1px solid rgba(245,158,11,0.18)",
+      }}>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, color: "rgba(245,158,11,0.5)", letterSpacing: "0.18em", marginBottom: 8 }}>
+          ◇ GOLD BREAKDOWN
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          {/* Current balance */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(148,163,184,0.6)" }}>BALANCE</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, color: "rgba(251,191,36,0.9)" }}>
+              {gold.toLocaleString()} 🪙
+            </span>
+          </div>
+          {/* Cost */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(148,163,184,0.6)" }}>COST</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, color: "rgba(239,68,68,0.85)" }}>
+              −{item.cost.toLocaleString()} 🪙
+            </span>
+          </div>
+          {/* Divider */}
+          <div style={{ height: 1, background: "rgba(245,158,11,0.15)", margin: "2px 0" }} />
+          {/* Remaining */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(148,163,184,0.6)" }}>AFTER PURCHASE</span>
+            <span style={{
+              fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700,
+              color: canAfford ? "rgba(74,222,128,0.9)" : "rgba(239,68,68,0.75)",
+            }}>
+              {canAfford ? remaining.toLocaleString() : "INSUFFICIENT"} {canAfford ? "🪙" : ""}
+            </span>
+          </div>
+        </div>
+
+        {/* Balance bar */}
+        <div style={{ marginTop: 8, height: 4, background: "rgba(245,158,11,0.1)", borderRadius: 2 }}>
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.max(0, Math.min(100, (remaining / gold) * 100))}%` }}
+            transition={{ delay: 0.15, duration: 0.5, ease: "easeOut" }}
+            style={{
+              height: "100%", borderRadius: 2,
+              background: canAfford
+                ? `linear-gradient(90deg, rgba(245,158,11,0.4), rgba(74,222,128,0.7))`
+                : "rgba(239,68,68,0.4)",
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Buy button */}
+      <button
+        onClick={e => { e.stopPropagation(); if (canAfford) onBuy(); }}
+        disabled={!canAfford}
+        data-testid={`button-inspect-buy-${item.id}`}
+        style={{
+          width: "100%", padding: "9px 0", borderRadius: 4,
+          cursor: canAfford ? "pointer" : "not-allowed",
+          background: canAfford
+            ? `linear-gradient(135deg, ${rarity.color}22, ${rarity.color}15)`
+            : "rgba(20,25,45,0.5)",
+          border: canAfford
+            ? `1px solid ${rarity.color}55`
+            : "1px solid rgba(30,35,60,0.4)",
+          color: canAfford ? rarity.color : "rgba(50,60,90,0.6)",
+          fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 700,
+          letterSpacing: "0.12em",
+          boxShadow: canAfford ? `0 0 12px ${rarity.color}20` : "none",
+        }}
+      >
+        {canAfford ? `◆ PURCHASE · ${item.cost} 🪙` : "🔒 INSUFFICIENT GOLD"}
+      </button>
+    </motion.div>
+  );
+}
+
+function ShopItemCard({ item, gold, canAfford, onBuy, isBuying }: {
+  item: any; gold: number; canAfford: boolean; onBuy: () => void; isBuying: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [inspecting, setInspecting] = useState(false);
   const [justBought, setJustBought] = useState(false);
   const rarity = getItemColor(item.cost);
   const isScreenTime = !!(item.durationMinutes && item.durationMinutes > 0);
+
+  const showOverlay = hovered || inspecting;
 
   const handleBuy = () => {
     if (!canAfford || isBuying) return;
     setJustBought(true);
     setTimeout(() => setJustBought(false), 1500);
+    setInspecting(false);
+    setHovered(false);
     onBuy();
   };
 
@@ -330,22 +488,22 @@ function ShopItemCard({ item, canAfford, onBuy, isBuying }: {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="relative flex flex-col"
+      onMouseEnter={() => { if (!inspecting) setHovered(true); }}
+      onMouseLeave={() => { if (!inspecting) setHovered(false); }}
+      className="relative flex flex-col overflow-hidden"
       style={{
-        background: hovered && canAfford
+        background: (hovered || inspecting) && canAfford
           ? `linear-gradient(135deg, ${rarity.glow} 0%, rgba(4,7,18,0.98) 60%)`
           : "rgba(6,10,26,0.9)",
-        border: `1px solid ${hovered && canAfford ? rarity.border : canAfford ? rarity.border + "55" : "rgba(30,35,60,0.6)"}`,
+        border: `1px solid ${(hovered || inspecting) && canAfford ? rarity.border : canAfford ? rarity.border + "55" : "rgba(30,35,60,0.6)"}`,
         borderRadius: "4px",
-        boxShadow: hovered && canAfford ? `0 0 24px ${rarity.glow}` : "none",
+        boxShadow: (hovered || inspecting) && canAfford ? `0 0 24px ${rarity.glow}` : "none",
         transition: "all 0.25s ease",
         opacity: canAfford ? 1 : 0.55,
       }}
     >
       {/* Corner brackets on hover */}
-      {hovered && canAfford && (
+      {(hovered || inspecting) && canAfford && (
         <>
           <div className="absolute -top-px -left-px w-3 h-3 border-t-2 border-l-2" style={{ borderColor: rarity.color }} />
           <div className="absolute -top-px -right-px w-3 h-3 border-t-2 border-r-2" style={{ borderColor: rarity.color }} />
@@ -353,6 +511,26 @@ function ShopItemCard({ item, canAfford, onBuy, isBuying }: {
           <div className="absolute -bottom-px -right-px w-3 h-3 border-b-2 border-r-2" style={{ borderColor: rarity.color }} />
         </>
       )}
+
+      {/* Inspect pin button */}
+      <button
+        onClick={e => { e.stopPropagation(); setInspecting(v => !v); setHovered(false); }}
+        data-testid={`button-shop-inspect-${item.id}`}
+        title={inspecting ? "Close inspect" : "Inspect item"}
+        style={{
+          position: "absolute", top: 8, left: 8, zIndex: 30,
+          padding: "3px 7px", borderRadius: 3, cursor: "pointer",
+          background: inspecting ? `${rarity.color}20` : "rgba(99,102,241,0.07)",
+          border: `1px solid ${inspecting ? rarity.color + "55" : "rgba(99,102,241,0.2)"}`,
+          color: inspecting ? rarity.color : "rgba(99,102,241,0.45)",
+          fontFamily: "var(--font-mono)", fontSize: 8,
+          letterSpacing: "0.1em", display: "flex", alignItems: "center", gap: 3,
+          transition: "all 0.2s",
+        }}
+      >
+        <Search style={{ width: 9, height: 9 }} />
+        {inspecting ? "CLOSE" : "INSPECT"}
+      </button>
 
       <div className="p-5 flex flex-col items-center text-center flex-1">
         {/* Rarity badge */}
@@ -433,6 +611,19 @@ function ShopItemCard({ item, canAfford, onBuy, isBuying }: {
           {isScreenTime && canAfford && <Monitor className="w-3 h-3 opacity-60" />}
         </button>
       </div>
+
+      {/* Inspect overlay */}
+      <AnimatePresence>
+        {showOverlay && (
+          <ShopInspectOverlay
+            item={item}
+            gold={gold}
+            rarity={rarity}
+            onBuy={handleBuy}
+            onClose={() => { setInspecting(false); setHovered(false); }}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -591,6 +782,7 @@ export default function Shop() {
               <motion.div key={item.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
                 <ShopItemCard
                   item={item}
+                  gold={gold}
                   canAfford={canAfford}
                   onBuy={() => handleBuy(item)}
                   isBuying={isBuying}
