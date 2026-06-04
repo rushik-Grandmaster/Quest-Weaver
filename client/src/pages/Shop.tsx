@@ -334,6 +334,7 @@ function ShopInspectOverlay({
         padding: "14px",
         display: "flex", flexDirection: "column", gap: 10,
         backdropFilter: "blur(4px)",
+        overflowY: "auto",
       }}
     >
       {/* Close */}

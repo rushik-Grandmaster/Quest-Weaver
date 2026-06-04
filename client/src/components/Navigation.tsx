@@ -6,9 +6,10 @@ import {
   LayoutDashboard, CheckSquare, ShoppingBag, Calendar,
   LogOut, Backpack, BookMarked, Sparkles, Flame, Activity,
   Timer, Trophy, Shield, Swords, ShoppingCart, Lock,
-  Grid3x3, Search, X, Home as HomeIcon, ChevronRight, ShieldOff, Monitor,
+  Grid3x3, Search, X, Home as HomeIcon, ChevronRight, ShieldOff, Monitor, HelpCircle,
 } from "lucide-react";
 import { useVaultStatus, useLockVault } from "@/components/VaultGate";
+import { useTutorial } from "@/components/Tutorial";
 
 const OWNER_USER_ID = "26147528";
 
@@ -57,6 +58,7 @@ export function Navigation() {
   const { data: vaultStatus } = useVaultStatus();
   const lockVault = useLockVault();
   const vaultUnlocked = !!vaultStatus?.isSet && !!vaultStatus?.isUnlocked;
+  const { startTutorial } = useTutorial();
 
   const isOwner = !!user && user.id === OWNER_USER_ID;
 
@@ -127,7 +129,7 @@ export function Navigation() {
         <button
           onClick={() => setPaletteOpen(true)}
           data-testid="button-open-palette-desktop"
-          className="mx-3 mb-3 px-3 py-2 rounded flex items-center gap-2 transition-all"
+          className="mx-3 mb-1 px-3 py-2 rounded flex items-center gap-2 transition-all"
           style={{
             background: "rgba(99,102,241,0.06)",
             border: "1px solid rgba(99,102,241,0.2)",
@@ -142,6 +144,38 @@ export function Navigation() {
           <span className="ml-auto px-1.5 py-0.5 rounded text-[0.55rem]"
                 style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)" }}>
             ⌘K
+          </span>
+        </button>
+
+        {/* Tutorial button */}
+        <button
+          onClick={startTutorial}
+          data-testid="button-start-tutorial"
+          className="mx-3 mb-3 px-3 py-2 rounded flex items-center gap-2 transition-all"
+          style={{
+            background: "rgba(74,222,128,0.05)",
+            border: "1px solid rgba(74,222,128,0.18)",
+            color: "rgba(134,239,172,0.75)",
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.65rem",
+            letterSpacing: "0.08em",
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLElement).style.background = "rgba(74,222,128,0.1)";
+            (e.currentTarget as HTMLElement).style.borderColor = "rgba(74,222,128,0.35)";
+            (e.currentTarget as HTMLElement).style.color = "rgba(134,239,172,0.95)";
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.background = "rgba(74,222,128,0.05)";
+            (e.currentTarget as HTMLElement).style.borderColor = "rgba(74,222,128,0.18)";
+            (e.currentTarget as HTMLElement).style.color = "rgba(134,239,172,0.75)";
+          }}
+        >
+          <HelpCircle className="w-3 h-3" />
+          <span className="uppercase">How To Use</span>
+          <span className="ml-auto px-1.5 py-0.5 rounded text-[0.55rem]"
+                style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)" }}>
+            ◈
           </span>
         </button>
 

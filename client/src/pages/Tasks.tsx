@@ -52,6 +52,7 @@ function QuestInspectOverlay({
         padding: "16px",
         display: "flex", flexDirection: "column", gap: 10,
         backdropFilter: "blur(4px)",
+        overflowY: "auto",
       }}
     >
       {/* Close */}
@@ -389,13 +390,19 @@ export default function Tasks() {
       >
         <AnimatePresence mode="popLayout">
           {filteredTasks?.map((task) => (
-            <QuestCard
+            <motion.div
               key={task.id}
-              task={task}
-              stats={stats}
-              onComplete={() => handleComplete(task.id)}
-              onDelete={() => deleteTask(task.id)}
-            />
+              layout
+              variants={staggerChild}
+              exit={{ opacity: 0, scale: 0.92, filter: "blur(6px)", transition: { duration: 0.2 } }}
+            >
+              <QuestCard
+                task={task}
+                stats={stats}
+                onComplete={() => handleComplete(task.id)}
+                onDelete={() => deleteTask(task.id)}
+              />
+            </motion.div>
           ))}
         </AnimatePresence>
       </motion.div>

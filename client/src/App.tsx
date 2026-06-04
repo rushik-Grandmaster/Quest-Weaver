@@ -9,6 +9,7 @@ import { Header } from "@/components/Header";
 import { VaultGate } from "@/components/VaultGate";
 import { WelcomeAnimation } from "@/components/WelcomeAnimation";
 import { LandingPage } from "@/components/LandingPage";
+import { TutorialProvider } from "@/components/Tutorial";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -138,9 +139,11 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WelcomeAnimation />
-        <Router />
-        <Toaster />
+        <TutorialProvider>
+          <WelcomeAnimation />
+          <Router />
+          <Toaster />
+        </TutorialProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
