@@ -393,10 +393,11 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  // Auto-start on first ever visit
+  // Auto-start on first ever login — mark done immediately so it never fires again
   useEffect(() => {
     const done = localStorage.getItem(LS_KEY);
     if (!done) {
+      localStorage.setItem(LS_KEY, "true");
       const t = setTimeout(() => setIsActive(true), 1200);
       return () => clearTimeout(t);
     }
