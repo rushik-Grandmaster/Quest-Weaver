@@ -10,7 +10,7 @@ import { checkAndAwardAchievements } from "./checkAchievements";
 import { ACHIEVEMENTS } from "@shared/achievements";
 import { applyXp, getRank, xpForLevel } from "@shared/levels";
 import { insertPhysiqueEntrySchema } from "@shared/schema";
-import OpenAI from "openai";
+import Groq from "groq-sdk";
 import crypto from "crypto";
 
 // === OWNER-ONLY (private features) ===
@@ -34,9 +34,8 @@ function verifyPassword(password: string, stored: string): boolean {
   } catch { return false; }
 }
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
 });
 
 export async function registerRoutes(
@@ -71,7 +70,6 @@ export async function registerRoutes(
   };
 
   // Vault gate — requires session.vaultUnlocked === userId IF the user has set a vault password.
-  // If no password set, allows through (vault is opt-in).
   const requireVaultUnlocked = async (req: any, res: any, next: any) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -79,7 +77,7 @@ export async function registerRoutes(
     const userId = req.user.claims.sub;
     try {
       const lock = await storage.getVaultLock(userId);
-      if (!lock) return next(); // vault not set → no gate
+      if (!lock) return next();
       if (req.session?.vaultUnlocked === userId) return next();
       return res.status(423).json({ message: "Vault locked", code: "VAULT_LOCKED" });
     } catch (err) {
@@ -118,7 +116,6 @@ export async function registerRoutes(
       const hash = hashPassword(newPassword);
       const cleanHint = typeof hint === "string" ? hint.slice(0, 80).trim() || null : null;
       await storage.upsertVaultLock(userId, hash, cleanHint);
-      // Auto-unlock the session after setting a new password
       (req.session as any).vaultUnlocked = userId;
       req.session.save?.(() => res.json({ ok: true, isSet: true, isUnlocked: true }));
     } catch (err: any) {
@@ -137,7 +134,6 @@ export async function registerRoutes(
       const lock = await storage.getVaultLock(userId);
       if (!lock) return res.status(400).json({ message: "No vault is set." });
       if (!verifyPassword(password, lock.passwordHash)) {
-        // Tiny timing buffer to discourage rapid guessing
         await new Promise((r) => setTimeout(r, 350));
         return res.status(401).json({ message: "Wrong cipher key." });
       }
@@ -165,11 +161,9 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       const parsed = insertPhysiqueEntrySchema.parse(req.body);
-      // Reject anything that isn't a base64 image data URL
       if (!parsed.photoUrl?.startsWith("data:image/")) {
         return res.status(400).json({ message: "photoUrl must be a base64 image data URL" });
       }
-      // Cap photo payload at ~4 MB of base64 to keep DB reasonable
       if (parsed.photoUrl.length > 5_500_000) {
         return res.status(413).json({ message: "Photo too large — please use a smaller image." });
       }
@@ -211,7 +205,6 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
-  // Lets the frontend ask "am I the owner?" without leaking the ID
   app.get("/api/physique/_owner-check", requireAuth, async (req: any, res) => {
     res.json({ isOwner: req.user?.claims?.sub === OWNER_USER_ID });
   });
@@ -226,13 +219,12 @@ export async function registerRoutes(
     res.json(stats);
   });
 
-  // Tasks — daily/habit tasks auto-reset each day
+  // Tasks
   app.get(api.tasks.list.path, requireAuth, async (req: any, res) => {
     const tasks = await storage.getTasks(req.user.claims.sub);
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
     const result = tasks.map(t => {
       if (t.category === "one_time") return t;
-      // For daily/habit tasks: treat as incomplete if not completed today
       const completedToday = t.lastCompletedAt && new Date(t.lastCompletedAt) >= todayStart;
       return { ...t, isCompleted: !!completedToday };
     });
@@ -242,10 +234,7 @@ export async function registerRoutes(
   app.post(api.tasks.create.path, requireAuth, async (req: any, res) => {
     try {
       const parsed = api.tasks.create.input.parse(req.body);
-      const input = {
-        ...parsed,
-        userId: req.user.claims.sub
-      };
+      const input = { ...parsed, userId: req.user.claims.sub };
       const task = await storage.createTask(input as any);
       res.status(201).json(task);
     } catch (err) {
@@ -283,7 +272,6 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Task not found" });
     }
 
-    // Check if already completed today (for daily/habit) or permanently (for one_time)
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
     const alreadyDoneToday = task.lastCompletedAt && new Date(task.lastCompletedAt) >= todayStart;
     if (task.category === "one_time" ? task.isCompleted : alreadyDoneToday) {
@@ -291,21 +279,17 @@ export async function registerRoutes(
       return res.json({ task, stats, leveledUp: false });
     }
 
-    // Mark complete — daily/habit tasks only update lastCompletedAt (not isCompleted)
     const taskUpdates: Record<string, any> = { lastCompletedAt: new Date() };
     if (task.category === "one_time") taskUpdates.isCompleted = true;
     const updatedTask = await storage.updateTask(task.id, taskUpdates);
 
-    // Award XP and Points using shared applyXp (handles multi-level-up)
     let stats = await storage.getUserStats(userId);
     if (!stats) stats = await storage.createUserStats(userId);
 
     const { level, xp, leveledUp } = applyXp(stats.level, stats.xp, task.rewardXp);
     const newPoints = stats.points + task.rewardPoints;
-
     const updatedStats = await storage.updateUserStats(userId, { xp, points: newPoints, level });
 
-    // Check achievements
     const newAchievements = await checkAndAwardAchievements(userId, {
       type: leveledUp ? "level_up" : "task_complete",
       newLevel: level,
@@ -324,17 +308,14 @@ export async function registerRoutes(
   app.post(api.shop.create.path, requireAuth, async (req: any, res) => {
     try {
       const parsed = api.shop.create.input.parse(req.body);
-      const input = {
-        ...parsed,
-        userId: req.user.claims.sub
-      };
+      const input = { ...parsed, userId: req.user.claims.sub };
       const item = await storage.createShopItem(input as any);
       res.status(201).json(item);
     } catch (err) {
-       if (err instanceof z.ZodError) {
-         return res.status(400).json({ message: err.errors[0].message });
-       }
-       return res.status(400).json({ message: "Invalid input" });
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      return res.status(400).json({ message: "Invalid input" });
     }
   });
 
@@ -355,7 +336,6 @@ export async function registerRoutes(
     const updatedStats = await storage.updateUserStats(userId, { points: newPoints });
     const inventoryItem = await storage.addToInventory(userId, item.id);
 
-    // If this item has a session timer, create an active reward session
     let rewardSession = null;
     if (item.durationMinutes && item.durationMinutes > 0) {
       const expiresAt = new Date(Date.now() + item.durationMinutes * 60 * 1000);
@@ -369,13 +349,11 @@ export async function registerRoutes(
       });
     }
 
-    // Check shop achievements
     const newAchievements = await checkAndAwardAchievements(userId, { type: "shop_purchase" });
-
     res.json({ item: inventoryItem, stats: updatedStats, newAchievements, rewardSession });
   });
 
-  // Reward Sessions (screen-time countdown timers)
+  // Reward Sessions
   app.get("/api/reward-sessions", requireAuth, async (req: any, res) => {
     const sessions = await storage.getRewardSessions(req.user.claims.sub);
     res.json(sessions);
@@ -397,9 +375,7 @@ export async function registerRoutes(
     const inventoryId = Number(req.params.id);
     const inventory = await storage.getInventory(req.user.claims.sub);
     const item = inventory.find(i => i.inventoryId === inventoryId);
-    
     if (!item) return res.status(404).json({ message: "Item not found" });
-    
     const result = await storage.useInventoryItem(inventoryId);
     res.json(result);
   });
@@ -408,9 +384,7 @@ export async function registerRoutes(
     const inventoryId = Number(req.params.id);
     const inventory = await storage.getInventory(req.user.claims.sub);
     const item = inventory.find(i => i.inventoryId === inventoryId);
-    
     if (!item) return res.status(404).json({ message: "Item not found" });
-    
     await storage.deleteInventoryItem(inventoryId);
     res.status(204).end();
   });
@@ -424,10 +398,7 @@ export async function registerRoutes(
   app.post(api.schedule.create.path, requireAuth, async (req: any, res) => {
     try {
       const parsed = api.schedule.create.input.parse(req.body);
-      const input = {
-        ...parsed,
-        userId: req.user.claims.sub
-      };
+      const input = { ...parsed, userId: req.user.claims.sub };
       const item = await storage.createScheduleItem(input as any);
       res.status(201).json(item);
     } catch (err) {
@@ -465,12 +436,8 @@ export async function registerRoutes(
   app.post(api.diary.create.path, requireAuth, requireVaultUnlocked, async (req: any, res) => {
     try {
       const parsed = api.diary.create.input.parse(req.body);
-      const input = {
-        ...parsed,
-        userId: req.user.claims.sub
-      };
+      const input = { ...parsed, userId: req.user.claims.sub };
       const entry = await storage.createDiaryEntry(input as any);
-      // Check diary achievements
       const newAchievements = await checkAndAwardAchievements(req.user.claims.sub, { type: "diary_entry" });
       res.status(201).json({ ...entry, newAchievements });
     } catch (err) {
@@ -505,15 +472,14 @@ export async function registerRoutes(
     res.json(history);
   });
 
-  // OpenAI TTS isn't exposed through the Replit AI proxy. Clients use browser
-  // speech-synthesis instead. Keep route for backwards compatibility.
+  // TTS — browser handles this
   app.post("/api/ai/tts", requireAuth, (_req, res) => {
     res.status(501).json({
       message: "Server TTS unavailable on this deployment. Browser speech-synthesis is used instead.",
     });
   });
 
-  // ── Chat Session Routes ──
+  // Chat Session Routes
   app.post("/api/ai/sessions", requireAuth, async (req: any, res) => {
     const userId = req.user.claims.sub;
     const { title = "New Conversation" } = req.body;
@@ -585,38 +551,16 @@ export async function registerRoutes(
         }
       }
 
-      // Simple keyword detection for image generation
-      if (message.toLowerCase().includes("generate image") || message.toLowerCase().includes("draw")) {
-        const response = await openai.images.generate({
-          model: "gpt-image-1",
-          prompt: message,
-          size: "512x512",
-          response_format: "b64_json"
-        });
-
-        const imageUrl = `data:image/png;base64,${response.data[0].b64_json}`;
-        const aiMessage = {
-          userId,
-          role: "assistant",
-          content: "I've generated this image for you.",
-          type: "image",
-        };
-        
-        await storage.saveAiMessage({ ...aiMessage, content: imageUrl, type: "image_url" });
-        return res.json({ message: aiMessage.content, type: "image", data: imageUrl });
-      }
-
-      // Default Chat response — load persistent memory from DB when session exists
+      // Build chat history
       let chatHistory: { role: string; content: string }[];
       if (sessionId) {
         const dbMessages = await storage.getSessionMessages(sessionId);
-        // Use last 30 messages (excluding the one we just saved) as full history
         chatHistory = dbMessages.slice(-31, -1).map(m => ({ role: m.role, content: m.content }));
       } else {
         chatHistory = history.map((m: any) => ({ role: m.role, content: m.content }));
       }
 
-      // ── Fetch all player data for Luminous context ──
+      // Fetch all player data for Luminous context
       const [playerStats, allTasks, inventoryItems, unlockedAchievements, diaryEntries, scheduleItems, bodyFatScans] = await Promise.all([
         storage.getUserStats(userId),
         storage.getTasks(userId),
@@ -672,7 +616,7 @@ ${bodyFatScans.slice(0, 3).map(s => `- ${new Date(s.createdAt).toLocaleDateStrin
 Use this data to give highly personalized advice, celebrate progress, and help ${displayName} level up in real life.
 ═══════════════════════════════════════`;
 
-      const tools = [
+      const tools: any[] = [
         {
           type: "function",
           function: {
@@ -755,21 +699,24 @@ Use this data to give highly personalized advice, celebrate progress, and help $
         }
       ];
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4.1",
+      const completion = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
         messages: [
-          { role: "system", content: `You are Luminous, an advanced AI life coach and shadow system assistant for LifeRPG. You help ${displayName} manage their life as an RPG. You have full real-time access to their player data — always use it to give deeply personalized, specific, and motivating responses. You have tools to create/delete tasks, shop items, and schedule events. Always refer to the user as "${displayName}". When asked about their progress, quests, inventory, achievements, or body stats, use the data below to give accurate, insightful answers. Never say you don't have access to their data. Celebrate wins, notice patterns, and push them forward like a true mentor.${playerContext}` },
-          ...chatHistory,
+          {
+            role: "system",
+            content: `You are Luminous, an advanced AI life coach and shadow system assistant for LifeRPG. You help ${displayName} manage their life as an RPG. You have full real-time access to their player data — always use it to give deeply personalized, specific, and motivating responses. You have tools to create/delete tasks, shop items, and schedule events. Always refer to the user as "${displayName}". When asked about their progress, quests, inventory, achievements, or body stats, use the data below to give accurate, insightful answers. Never say you don't have access to their data. Celebrate wins, notice patterns, and push them forward like a true mentor.\n${playerContext}`
+          },
+          ...chatHistory as any,
           { role: "user", content: message }
         ],
-        tools: tools as any,
+        tools: tools,
         tool_choice: "auto",
-        max_completion_tokens: 2048,
+        max_tokens: 2048,
       });
 
       const responseMessage = completion.choices[0].message;
 
-      if (responseMessage.tool_calls) {
+      if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
         const toolResults = [];
         for (const toolCall of responseMessage.tool_calls) {
           const tc = toolCall as any;
@@ -796,20 +743,23 @@ Use this data to give highly personalized advice, celebrate progress, and help $
           toolResults.push({
             role: "tool",
             tool_call_id: tc.id,
-            name: tc.function.name,
             content: result
           });
         }
 
-        const finalCompletion = await openai.chat.completions.create({
-          model: "gpt-4.1",
+        const finalCompletion = await groq.chat.completions.create({
+          model: "llama-3.3-70b-versatile",
           messages: [
-            { role: "system", content: "The tools have been executed. Confirm to the user that their request has been completed or explain any errors." },
-            ...chatHistory,
+            {
+              role: "system",
+              content: "The tools have been executed. Confirm to the user that their request has been completed or explain any errors."
+            },
+            ...chatHistory as any,
             { role: "user", content: message },
             responseMessage as any,
             ...toolResults as any
-          ]
+          ],
+          max_tokens: 1024,
         });
 
         const aiContent = finalCompletion.choices[0].message.content || "I've processed your request.";
@@ -833,25 +783,25 @@ Use this data to give highly personalized advice, celebrate progress, and help $
         return res.status(400).json({ message: "Image, height, and weight are required" });
       }
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4.1",
+      const response = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
         messages: [
           {
             role: "system",
-            content: "You are a professional fitness and body composition expert. Analyze the provided photo along with height and weight to estimate body fat percentage. Return ONLY a JSON object with 'bodyFat' (number) and 'analysis' (string)."
+            content: "You are a professional fitness and body composition expert. Based on the height and weight provided, estimate a realistic body fat percentage range. Return ONLY a JSON object with 'bodyFat' (number) and 'analysis' (string). No markdown, no extra text."
           },
           {
             role: "user",
-            content: [
-              { type: "text", text: `Height: ${height}cm, Weight: ${weight}kg. Estimate body fat.` },
-              { type: "image_url", image_url: { url: image } }
-            ]
+            content: `Height: ${height}cm, Weight: ${weight}kg. Estimate body fat percentage.`
           }
         ],
-        response_format: { type: "json_object" }
+        max_tokens: 256,
       });
 
-      const result = JSON.parse(response.choices[0].message.content || "{}");
+      const rawContent = response.choices[0].message.content || "{}";
+      const cleaned = rawContent.replace(/```json|```/g, "").trim();
+      const result = JSON.parse(cleaned);
+
       const scan = await storage.saveBodyFatScan({
         userId: req.user.claims.sub,
         imageUrl: image,
@@ -860,7 +810,6 @@ Use this data to give highly personalized advice, celebrate progress, and help $
         estimatedBodyFat: result.bodyFat
       });
 
-      // Check health achievements
       const newAchievements = await checkAndAwardAchievements(req.user.claims.sub, { type: "body_fat_scan" });
       res.json({ ...result, id: scan.id, newAchievements });
     } catch (err) {
@@ -916,19 +865,17 @@ Use this data to give highly personalized advice, celebrate progress, and help $
     const now = new Date();
     if (now < timer.endTime) return res.json({ status: "active", timer });
 
-    // Timer expired — check if leveled up
     const stats = await storage.getUserStats(userId);
     if (!stats || stats.level <= timer.startLevel) {
       await storage.triggerTimer(userId);
       return res.json({ status: "expired_reset", message: "Progress has been reset." });
     } else {
-      // Level gained — cancel timer safely (no reset)
       await storage.cancelTimer(userId);
       return res.json({ status: "expired_safe", message: "You leveled up in time! Progress saved." });
     }
   });
 
-  /* ─── AMAZON WISHLIST ─────────────────────────────────── */
+  // Amazon Wishlist
   app.get("/api/wishlist", requireAuth, async (req: any, res) => {
     const items = await storage.getWishlistItems(req.user.claims.sub);
     res.json(items);
@@ -949,13 +896,10 @@ Use this data to give highly personalized advice, celebrate progress, and help $
     res.status(204).end();
   });
 
-  /** Try to fetch product info from an Amazon.in URL.
-   *  Amazon often blocks bots — return whatever we can get; client can edit fields. */
   app.post("/api/wishlist/fetch-product", requireAuth, async (req, res) => {
     const { url } = req.body as { url?: string };
     if (!url) return res.status(400).json({ message: "URL required" });
 
-    // Extract ASIN from URL
     const asinMatch =
       url.match(/\/dp\/([A-Z0-9]{10})/i) ||
       url.match(/\/gp\/product\/([A-Z0-9]{10})/i) ||
@@ -963,7 +907,6 @@ Use this data to give highly personalized advice, celebrate progress, and help $
       url.match(/[?&]asin=([A-Z0-9]{10})/i);
     const asin = asinMatch?.[1]?.toUpperCase();
 
-    // Validate amazon.in
     const isAmazon = /amazon\.(in|com)/i.test(url);
     if (!isAmazon && !asin) {
       return res.status(400).json({ message: "Please provide a valid Amazon.in URL" });
@@ -997,7 +940,6 @@ Use this data to give highly personalized advice, celebrate progress, and help $
           .replace(/\s+/g, " ")
           .trim();
 
-      // ── Title ─────────────────────────────────────────
       let title = "";
       const titlePatterns = [
         /id="productTitle"[^>]*>([\s\S]*?)<\/span>/i,
@@ -1013,7 +955,6 @@ Use this data to give highly personalized advice, celebrate progress, and help $
         }
       }
 
-      // ── Price (₹) ─────────────────────────────────────
       let price = "";
       const pricePatterns = [
         /"priceAmount":\s*([\d.]+)/,
@@ -1033,7 +974,6 @@ Use this data to give highly personalized advice, celebrate progress, and help $
         }
       }
 
-      // ── Image ─────────────────────────────────────────
       let imageUrl = "";
       const imgPatterns = [
         /"hiRes":\s*"(https:\/\/m\.media-amazon\.com[^"]+\.(?:jpg|jpeg|png))"/i,
@@ -1049,11 +989,8 @@ Use this data to give highly personalized advice, celebrate progress, and help $
       }
 
       const success = !!(title || imageUrl || price);
-
       return res.json({
-        title,
-        price,
-        imageUrl,
+        title, price, imageUrl,
         asin: asin ?? "",
         productUrl: fetchUrl,
         success,
@@ -1062,9 +999,7 @@ Use this data to give highly personalized advice, celebrate progress, and help $
     } catch (err: any) {
       console.error("Amazon fetch error:", err?.message);
       return res.json({
-        title: "",
-        price: "",
-        imageUrl: "",
+        title: "", price: "", imageUrl: "",
         asin: asin ?? "",
         productUrl: fetchUrl,
         success: false,
@@ -1073,7 +1008,7 @@ Use this data to give highly personalized advice, celebrate progress, and help $
     }
   });
 
-  // Quest Timer — penalty deduction (called every 5 min overtime)
+  // Quest Timer penalty
   app.post("/api/quest-timer/penalty", requireAuth, async (req: any, res) => {
     const userId = req.user.claims.sub;
     let stats = await storage.getUserStats(userId);
@@ -1083,6 +1018,7 @@ Use this data to give highly personalized advice, celebrate progress, and help $
     res.json({ stats: updatedStats, penaltyApplied: 5 });
   });
 
+  // Luminous Lens — text-based analysis (Groq doesn't support vision, so we describe what we can)
   app.post("/api/ai/lens", requireAuth, async (req: any, res) => {
     try {
       const { image } = req.body;
@@ -1093,22 +1029,22 @@ Use this data to give highly personalized advice, celebrate progress, and help $
         return res.status(400).json({ message: "Invalid image format. Please upload a JPEG or PNG." });
       }
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4.1",
-        max_tokens: 1024,
+      const firstName = (req as any).user.claims.first_name;
+      const name = firstName ? (firstName.charAt(0).toUpperCase() + firstName.slice(1)) : "the user";
+
+      const response = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
         messages: [
           {
             role: "system",
-            content: `You are Luminous Lens, a visual intelligence system for ${(req as any).user.claims.first_name ? ((req as any).user.claims.first_name.charAt(0).toUpperCase() + (req as any).user.claims.first_name.slice(1)) : "the user"}'s LifeRPG. Analyze the provided image thoroughly. Identify objects, read text, describe scenes, estimate nutrition for food, or provide context. Be detailed yet concise. Address the user by their name: ${(req as any).user.claims.first_name ? ((req as any).user.claims.first_name.charAt(0).toUpperCase() + (req as any).user.claims.first_name.slice(1)) : "the user"}.`
+            content: `You are Luminous Lens, a visual intelligence system for ${name}'s LifeRPG. The user has submitted an image for analysis. Since direct image processing is not available in this mode, acknowledge the image submission and ask ${name} to describe what's in the image so you can provide detailed analysis, nutrition estimates, object identification, or any other insight they need.`
           },
           {
             role: "user",
-            content: [
-              { type: "text", text: "Scan this image and tell me everything relevant about what you see." },
-              { type: "image_url", image_url: { url: image, detail: "high" } }
-            ] as any
+            content: "I've submitted an image for analysis."
           }
-        ]
+        ],
+        max_tokens: 512,
       });
 
       const content = response.choices[0]?.message?.content;
@@ -1119,10 +1055,7 @@ Use this data to give highly personalized advice, celebrate progress, and help $
       res.json({ analysis: content });
     } catch (err: any) {
       console.error("Luminous Lens error:", err?.message ?? err);
-      const msg = err?.message?.includes("image")
-        ? "The image could not be processed. Try a different photo."
-        : "Visual analysis failed. Please try again.";
-      res.status(500).json({ message: msg });
+      res.status(500).json({ message: "Visual analysis failed. Please try again." });
     }
   });
 
