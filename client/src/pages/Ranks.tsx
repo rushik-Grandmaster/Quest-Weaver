@@ -1,7 +1,19 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { useUserStats } from "@/hooks/use-gamification";
-import { getRank, xpForLevel, RANK_THRESHOLDS } from "@shared/levels";
-import { Loader2, Lock, CheckCircle2, ChevronRight } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
+import { getRank, xpForLevel } from "@shared/levels";
+import { Loader2, Lock, CheckCircle2, ChevronRight, Trophy, Users, Crown, Medal } from "lucide-react";
+
+type LeaderboardEntry = {
+  userId: string;
+  firstName: string | null;
+  lastName: string | null;
+  level: number;
+  xp: number;
+  points: number;
+};
 
 const RANK_DATA = [
   {
@@ -90,6 +102,10 @@ const RANK_DATA = [
   },
 ];
 
+function getRankData(rank: string) {
+  return RANK_DATA.find(r => r.rank === rank) ?? RANK_DATA[0];
+}
+
 function RankCard({
   data,
   isCurrent,
@@ -127,7 +143,6 @@ function RankCard({
         opacity: isUnlocked ? 1 : 0.45,
       }}
     >
-      {/* Corner brackets for current rank */}
       {isCurrent && (
         <>
           <div className="absolute -top-px -left-px w-3 h-3 border-t-2 border-l-2" style={{ borderColor: data.color }} />
@@ -138,7 +153,6 @@ function RankCard({
       )}
 
       <div className="p-5 flex flex-col md:flex-row gap-4 md:items-center">
-        {/* Rank badge */}
         <div
           className="flex-shrink-0 w-16 h-16 flex flex-col items-center justify-center"
           style={{
@@ -162,7 +176,6 @@ function RankCard({
           </span>
         </div>
 
-        {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-1 flex-wrap">
             <span
@@ -183,7 +196,7 @@ function RankCard({
                   fontSize: "0.55rem",
                 }}
               >
-                ▸ CURRENT RANK
+                CURRENT RANK
               </span>
             )}
             {isUnlocked && !isCurrent && (
@@ -205,13 +218,12 @@ function RankCard({
             {data.lore}
           </p>
 
-          {/* Progress bar (shown for current rank) */}
           {isCurrent && (
             <div className="mt-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="hud-label" style={{ color: data.color + "80" }}>RANK PROGRESS</span>
                 <span className="hud-label" style={{ color: data.color }}>
-                  LVL {playerLevel} / {data.maxLevel ?? "∞"}
+                  LVL {playerLevel} / {data.maxLevel ?? "INF"}
                 </span>
               </div>
               <div
@@ -230,7 +242,6 @@ function RankCard({
           )}
         </div>
 
-        {/* XP to unlock (for locked ranks) */}
         {!isUnlocked && (
           <div className="flex-shrink-0 flex flex-col items-end gap-1">
             <span className="hud-label">UNLOCKS AT</span>
@@ -243,7 +254,6 @@ function RankCard({
           </div>
         )}
 
-        {/* Arrow for next rank */}
         {isCurrent && data.maxLevel && (
           <div className="flex-shrink-0 flex flex-col items-end gap-1">
             <span className="hud-label">NEXT RANK AT</span>
@@ -263,8 +273,144 @@ function RankCard({
   );
 }
 
+function LeaderboardRow({
+  entry,
+  position,
+  isCurrentUser,
+  index,
+}: {
+  entry: LeaderboardEntry;
+  position: number;
+  isCurrentUser: boolean;
+  index: number;
+}) {
+  const rank = getRank(entry.level);
+  const rankData = getRankData(rank);
+  const displayName = entry.firstName
+    ? `${entry.firstName.charAt(0).toUpperCase() + entry.firstName.slice(1)}${entry.lastName ? ` ${entry.lastName.charAt(0).toUpperCase()}.` : ""}`
+    : "Unknown Hunter";
+
+  const getMedalColor = (pos: number) => {
+    if (pos === 1) return "#fbbf24";
+    if (pos === 2) return "#94a3b8";
+    if (pos === 3) return "#f97316";
+    return null;
+  };
+
+  const medalColor = getMedalColor(position);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -16 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.04, duration: 0.35 }}
+      className="flex items-center gap-3 p-3"
+      style={{
+        background: isCurrentUser
+          ? `linear-gradient(90deg, ${rankData.glowColor} 0%, rgba(6,10,26,0.9) 40%)`
+          : "rgba(6,10,26,0.85)",
+        border: `1px solid ${isCurrentUser ? rankData.borderColor : "rgba(99,102,241,0.12)"}`,
+        borderRadius: "4px",
+        boxShadow: isCurrentUser ? `0 0 16px ${rankData.glowColor}` : "none",
+      }}
+    >
+      {/* Position */}
+      <div
+        className="w-8 h-8 flex-shrink-0 flex items-center justify-center"
+        style={{
+          background: medalColor ? `${medalColor}18` : "rgba(15,20,40,0.8)",
+          border: `1px solid ${medalColor ? `${medalColor}44` : "rgba(99,102,241,0.2)"}`,
+          borderRadius: "3px",
+        }}
+      >
+        {position <= 3 ? (
+          <Trophy className="w-4 h-4" style={{ color: medalColor ?? "rgba(148,163,184,0.8)" }} />
+        ) : (
+          <span
+            className="text-xs font-bold"
+            style={{ fontFamily: "var(--font-mono)", color: "rgba(148,163,184,0.8)" }}
+          >
+            {position}
+          </span>
+        )}
+      </div>
+
+      {/* Rank badge */}
+      <div
+        className="w-10 h-10 flex-shrink-0 flex flex-col items-center justify-center"
+        style={{
+          background: rankData.glowColor,
+          border: `1px solid ${rankData.borderColor}`,
+          borderRadius: "3px",
+        }}
+      >
+        <span
+          className="text-sm font-black"
+          style={{
+            fontFamily: "var(--font-mono)",
+            color: rankData.color,
+            textShadow: `0 0 8px ${rankData.color}`,
+          }}
+        >
+          {rank}
+        </span>
+      </div>
+
+      {/* Name */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span
+            className="font-semibold truncate"
+            style={{ color: isCurrentUser ? rankData.color : "rgba(199,210,254,0.9)", fontSize: "0.85rem" }}
+          >
+            {displayName}
+          </span>
+          {isCurrentUser && (
+            <span
+              className="hud-label px-1.5 py-0.5"
+              style={{
+                background: `${rankData.color}18`,
+                border: `1px solid ${rankData.color}44`,
+                color: rankData.color,
+                borderRadius: "2px",
+                fontSize: "0.55rem",
+              }}
+            >
+              YOU
+            </span>
+          )}
+        </div>
+        <div className="hud-label mt-0.5" style={{ color: "rgba(99,102,241,0.4)" }}>
+          {entry.xp.toLocaleString()} XP
+        </div>
+      </div>
+
+      {/* Level */}
+      <div className="flex-shrink-0 text-right">
+        <div
+          className="text-lg font-black"
+          style={{ fontFamily: "var(--font-mono)", color: isCurrentUser ? rankData.color : "rgba(199,210,254,0.95)" }}
+        >
+          {entry.level}
+        </div>
+        <div className="hud-label" style={{ color: "rgba(99,102,241,0.35)" }}>LVL</div>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function Ranks() {
+  const { user } = useAuth();
   const { data: stats, isLoading } = useUserStats();
+  const [activeTab, setActiveTab] = useState<"ranks" | "leaderboard">("ranks");
+
+  const { data: leaderboard = [], isLoading: leaderboardLoading } = useQuery<LeaderboardEntry[]>({
+    queryKey: ["/api/leaderboard"],
+    queryFn: async () => {
+      const res = await fetch("/api/leaderboard?limit=50");
+      return res.json();
+    },
+  });
 
   if (isLoading || !stats) {
     return (
@@ -277,7 +423,9 @@ export default function Ranks() {
   const playerLevel = stats.level;
   const currentRank = getRank(playerLevel);
   const xpNeeded = xpForLevel(playerLevel);
-  const currentRankData = RANK_DATA.find(r => r.rank === currentRank)!;
+  const currentRankData = getRankData(currentRank);
+
+  const userPosition = leaderboard.findIndex(e => e.userId === user?.id) + 1;
 
   return (
     <div className="p-5 md:p-8 max-w-3xl mx-auto space-y-6">
@@ -288,7 +436,7 @@ export default function Ranks() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="hud-label mb-1">◈ HUNTER RANK REGISTRY</div>
+        <div className="hud-label mb-1">HUNTER RANK REGISTRY</div>
         <h1
           className="text-3xl font-black tracking-widest uppercase"
           style={{ fontFamily: "var(--font-display)", color: "rgba(199,210,254,0.95)" }}
@@ -300,83 +448,200 @@ export default function Ranks() {
         </p>
       </motion.div>
 
-      {/* Current status summary */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15, duration: 0.45 }}
-        className="relative p-5"
-        style={{
-          background: `linear-gradient(135deg, ${currentRankData.glowColor} 0%, rgba(4,7,18,0.98) 70%)`,
-          border: `1px solid ${currentRankData.borderColor}`,
-          borderRadius: "4px",
-          boxShadow: `0 0 40px ${currentRankData.glowColor}`,
-        }}
-      >
-        <div className="hud-label mb-3" style={{ color: currentRankData.color + "88" }}>
-          ▸ CURRENT STATUS
-        </div>
-        <div className="flex items-center gap-6 flex-wrap">
-          <div>
-            <div className="hud-label mb-1">RANK</div>
+      {/* Tab switcher */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setActiveTab("ranks")}
+          className="flex items-center gap-2 px-4 py-2 transition-all duration-200"
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.7rem",
+            letterSpacing: "0.08em",
+            fontWeight: 800,
+            background: activeTab === "ranks" ? "rgba(99,102,241,0.15)" : "rgba(6,10,26,0.8)",
+            border: `1px solid ${activeTab === "ranks" ? "rgba(99,102,241,0.4)" : "rgba(99,102,241,0.15)"}`,
+            borderRadius: "3px",
+            color: activeTab === "ranks" ? "rgba(165,180,252,1)" : "rgba(100,116,139,0.7)",
+          }}
+        >
+          <Crown className="w-3.5 h-3.5" />
+          MY RANK
+        </button>
+        <button
+          onClick={() => setActiveTab("leaderboard")}
+          className="flex items-center gap-2 px-4 py-2 transition-all duration-200"
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.7rem",
+            letterSpacing: "0.08em",
+            fontWeight: 800,
+            background: activeTab === "leaderboard" ? "rgba(99,102,241,0.15)" : "rgba(6,10,26,0.8)",
+            border: `1px solid ${activeTab === "leaderboard" ? "rgba(99,102,241,0.4)" : "rgba(99,102,241,0.15)"}`,
+            borderRadius: "3px",
+            color: activeTab === "leaderboard" ? "rgba(165,180,252,1)" : "rgba(100,116,139,0.7)",
+          }}
+        >
+          <Users className="w-3.5 h-3.5" />
+          GLOBAL
+          {leaderboard.length > 0 && (
             <span
-              className="text-5xl font-black"
+              className="ml-0.5 px-1.5 py-0.5"
+              style={{ background: "rgba(99,102,241,0.2)", borderRadius: "2px", fontSize: "0.6rem" }}
+            >
+              {leaderboard.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === "ranks" && (
+        <>
+          {/* Current status summary */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15, duration: 0.45 }}
+            className="relative p-5"
+            style={{
+              background: `linear-gradient(135deg, ${currentRankData.glowColor} 0%, rgba(4,7,18,0.98) 70%)`,
+              border: `1px solid ${currentRankData.borderColor}`,
+              borderRadius: "4px",
+              boxShadow: `0 0 40px ${currentRankData.glowColor}`,
+            }}
+          >
+            <div className="hud-label mb-3" style={{ color: currentRankData.color + "88" }}>
+              CURRENT STATUS
+            </div>
+            <div className="flex items-center gap-6 flex-wrap">
+              <div>
+                <div className="hud-label mb-1">RANK</div>
+                <span
+                  className="text-5xl font-black"
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    color: currentRankData.color,
+                    textShadow: `0 0 20px ${currentRankData.color}`,
+                  }}
+                >
+                  {currentRank}
+                </span>
+              </div>
+              <div className="flex-1 min-w-[140px]">
+                <div className="flex justify-between mb-1">
+                  <span className="hud-label">LEVEL</span>
+                  <span className="hud-label" style={{ color: currentRankData.color }}>
+                    {stats.xp} / {xpNeeded} XP
+                  </span>
+                </div>
+                <div
+                  className="h-2 rounded-full overflow-hidden mb-2"
+                  style={{ background: "rgba(15,20,40,0.8)", border: `1px solid ${currentRankData.borderColor}44` }}
+                >
+                  <motion.div
+                    className="h-full rounded-full"
+                    style={{ background: `linear-gradient(90deg, ${currentRankData.color}66, ${currentRankData.color})` }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(100, (stats.xp / xpNeeded) * 100)}%` }}
+                    transition={{ delay: 0.4, duration: 0.9, ease: "easeOut" }}
+                  />
+                </div>
+                <div
+                  className="text-3xl font-black"
+                  style={{ fontFamily: "var(--font-mono)", color: "rgba(199,210,254,0.9)" }}
+                >
+                  {currentRankData.title}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Rank list */}
+          <div className="space-y-3">
+            <div className="hud-label">ALL RANKS</div>
+            {RANK_DATA.map((rankData, i) => {
+              const isCurrent = rankData.rank === currentRank;
+              const isUnlocked = playerLevel >= rankData.minLevel;
+              return (
+                <RankCard
+                  key={rankData.rank}
+                  data={rankData}
+                  isCurrent={isCurrent}
+                  isUnlocked={isUnlocked}
+                  playerLevel={playerLevel}
+                  index={i}
+                />
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {activeTab === "leaderboard" && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45 }}
+        >
+          {/* Leaderboard header */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="hud-label mb-0.5">GLOBAL STANDINGS</div>
+              <p style={{ color: "rgba(100,116,139,0.7)", fontSize: "0.75rem" }}>
+                {leaderboard.length} registered hunters competing
+              </p>
+            </div>
+            {userPosition > 0 && (
+              <div
+                className="text-right p-3"
+                style={{
+                  background: `${currentRankData.glowColor}`,
+                  border: `1px solid ${currentRankData.borderColor}`,
+                  borderRadius: "4px",
+                }}
+              >
+                <div className="hud-label" style={{ color: currentRankData.color + "88" }}>YOUR POSITION</div>
+                <div
+                  className="text-2xl font-black"
+                  style={{ fontFamily: "var(--font-mono)", color: currentRankData.color }}
+                >
+                  #{userPosition}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Leaderboard list */}
+          {leaderboardLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-6 h-6 animate-spin" style={{ color: "rgba(99,102,241,0.6)" }} />
+            </div>
+          ) : leaderboard.length === 0 ? (
+            <div
+              className="flex flex-col items-center justify-center py-16 gap-3"
               style={{
-                fontFamily: "var(--font-mono)",
-                color: currentRankData.color,
-                textShadow: `0 0 20px ${currentRankData.color}`,
+                background: "rgba(6,10,26,0.85)",
+                border: "1px solid rgba(99,102,241,0.15)",
+                borderRadius: "4px",
               }}
             >
-              {currentRank}
-            </span>
-          </div>
-          <div className="flex-1 min-w-[140px]">
-            <div className="flex justify-between mb-1">
-              <span className="hud-label">LEVEL</span>
-              <span className="hud-label" style={{ color: currentRankData.color }}>
-                {stats.xp} / {xpNeeded} XP
-              </span>
+              <Users className="w-8 h-8" style={{ color: "rgba(99,102,241,0.3)" }} />
+              <p className="hud-label" style={{ color: "rgba(99,102,241,0.35)" }}>NO HUNTERS REGISTERED YET</p>
             </div>
-            <div
-              className="h-2 rounded-full overflow-hidden mb-2"
-              style={{ background: "rgba(15,20,40,0.8)", border: `1px solid ${currentRankData.borderColor}44` }}
-            >
-              <motion.div
-                className="h-full rounded-full"
-                style={{ background: `linear-gradient(90deg, ${currentRankData.color}66, ${currentRankData.color})` }}
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, (stats.xp / xpNeeded) * 100)}%` }}
-                transition={{ delay: 0.4, duration: 0.9, ease: "easeOut" }}
-              />
+          ) : (
+            <div className="space-y-2">
+              {leaderboard.map((entry, i) => (
+                <LeaderboardRow
+                  key={entry.userId}
+                  entry={entry}
+                  position={i + 1}
+                  isCurrentUser={entry.userId === user?.id}
+                  index={i}
+                />
+              ))}
             </div>
-            <div
-              className="text-3xl font-black"
-              style={{ fontFamily: "var(--font-mono)", color: "rgba(199,210,254,0.9)" }}
-            >
-              {currentRankData.title}
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Rank list */}
-      <div className="space-y-3">
-        <div className="hud-label">◈ ALL RANKS</div>
-        {RANK_DATA.map((rankData, i) => {
-          const isCurrent = rankData.rank === currentRank;
-          const isUnlocked = playerLevel >= rankData.minLevel;
-          return (
-            <RankCard
-              key={rankData.rank}
-              data={rankData}
-              isCurrent={isCurrent}
-              isUnlocked={isUnlocked}
-              playerLevel={playerLevel}
-              index={i}
-            />
-          );
-        })}
-      </div>
+          )}
+        </motion.div>
+      )}
 
       {/* Footer note */}
       <motion.div
@@ -386,7 +651,7 @@ export default function Ranks() {
         className="text-center pb-4"
         style={{ color: "rgba(99,102,241,0.35)", fontSize: "0.7rem", fontFamily: "var(--font-mono)" }}
       >
-        ◈ Complete daily quests to earn XP and advance your rank ◈
+        Complete daily quests to earn XP and advance your rank
       </motion.div>
     </div>
   );

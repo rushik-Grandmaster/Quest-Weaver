@@ -91,6 +91,9 @@ export interface IStorage {
   getRewardSessions(userId: string): Promise<RewardSession[]>;
   createRewardSession(data: InsertRewardSession): Promise<RewardSession>;
   deleteRewardSession(id: number): Promise<void>;
+
+  // Global leaderboard
+  getGlobalLeaderboard(limit?: number): Promise<{ userId: string; firstName: string | null; lastName: string | null; level: number; xp: number; points: number }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -443,6 +446,23 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRewardSession(id: number): Promise<void> {
     await db.delete(rewardSessions).where(eq(rewardSessions.id, id));
+  }
+
+  async getGlobalLeaderboard(limit: number = 50): Promise<{ userId: string; firstName: string | null; lastName: string | null; level: number; xp: number; points: number }[]> {
+    const result = await db.select({
+      userId: users.id,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      level: userStats.level,
+      xp: userStats.xp,
+      points: userStats.points,
+    })
+    .from(users)
+    .innerJoin(userStats, eq(users.id, userStats.userId))
+    .orderBy(desc(userStats.level), desc(userStats.xp))
+    .limit(limit);
+
+    return result;
   }
 }
 

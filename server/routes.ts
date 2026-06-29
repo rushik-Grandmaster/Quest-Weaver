@@ -1059,6 +1059,18 @@ Use this data to give highly personalized advice, celebrate progress, and help $
     }
   });
 
+  // Global Leaderboard - public, no auth required
+  app.get("/api/leaderboard", async (req, res) => {
+    try {
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || "50"));
+      const leaderboard = await storage.getGlobalLeaderboard(limit);
+      res.json(leaderboard);
+    } catch (err: any) {
+      console.error("Leaderboard error:", err?.message ?? err);
+      res.status(500).json({ message: "Failed to fetch leaderboard" });
+    }
+  });
+
   return httpServer;
 }
 
