@@ -1059,6 +1059,85 @@ Use this data to give highly personalized advice, celebrate progress, and help $
     }
   });
 
+  // === MEAL ENTRIES ===
+  app.get("/api/meals", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const entries = await storage.getMealEntries(userId);
+      res.json(entries);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch meals" });
+    }
+  });
+
+  app.post("/api/meals", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const entry = await storage.createMealEntry({ ...req.body, userId });
+      res.status(201).json(entry);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message ?? "Failed to create meal entry" });
+    }
+  });
+
+  app.patch("/api/meals/:id", requireAuth, async (req: any, res) => {
+    try {
+      const entry = await storage.getMealEntry(parseInt(req.params.id));
+      if (!entry) return res.status(404).json({ message: "Not found" });
+      if (entry.userId !== req.user.claims.sub) return res.status(403).json({ message: "Forbidden" });
+      const updated = await storage.updateMealEntry(parseInt(req.params.id), req.body);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message ?? "Failed to update meal entry" });
+    }
+  });
+
+  app.delete("/api/meals/:id", requireAuth, async (req: any, res) => {
+    try {
+      const entry = await storage.getMealEntry(parseInt(req.params.id));
+      if (!entry) return res.status(404).json({ message: "Not found" });
+      if (entry.userId !== req.user.claims.sub) return res.status(403).json({ message: "Forbidden" });
+      await storage.deleteMealEntry(parseInt(req.params.id));
+      res.status(204).end();
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to delete meal entry" });
+    }
+  });
+
+  // Luminous meal analysis
+  app.post("/api/ai/meals/analyze", requireAuth, async (req: any, res) => {
+    try {
+      const { mealName, notes } = req.body;
+      if (!mealName) return res.status(400).json({ message: "Meal name required" });
+
+      const firstName = req.user.claims.first_name;
+      const name = firstName ? (firstName.charAt(0).toUpperCase() + firstName.slice(1)) : "the user";
+
+      const response = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "system",
+            content: `You are Luminous, an elite nutrition intelligence system for ${name}'s LifeRPG. Analyze meal entries and provide precise macro estimates. Always return ONLY valid JSON — no markdown, no extra text.`
+          },
+          {
+            role: "user",
+            content: `Analyze this meal: "${mealName}"${notes ? `. Additional context: ${notes}` : ""}. Estimate the typical nutritional values for a standard serving. Return a JSON object with these exact fields: calories (integer), protein (number in grams), carbs (number in grams), fat (number in grams), fiber (number in grams), analysis (string: 2-3 sentence nutritional insight and health rating), healthScore (integer 1-10).`
+          }
+        ],
+        max_tokens: 512,
+      });
+
+      const rawContent = response.choices[0]?.message?.content || "{}";
+      const cleaned = rawContent.replace(/```json|```/g, "").trim();
+      const result = JSON.parse(cleaned);
+      res.json(result);
+    } catch (err: any) {
+      console.error("Meal analysis error:", err?.message ?? err);
+      res.status(500).json({ message: "Analysis failed. Please try again." });
+    }
+  });
+
   // Global Leaderboard - public, no auth required
   app.get("/api/leaderboard", async (req, res) => {
     try {

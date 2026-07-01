@@ -302,6 +302,38 @@ export const insertPhysiqueEntrySchema = createInsertSchema(physiqueEntries).omi
   notes: z.string().max(500).optional().nullable(),
 });
 
+// Meal entries — calorie and macro tracker
+export const mealEntries = pgTable("meal_entries", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  mealType: text("meal_type").notNull().default("snack"), // 'breakfast' | 'lunch' | 'dinner' | 'snack'
+  calories: integer("calories").notNull(),
+  protein: real("protein"),   // grams
+  carbs: real("carbs"),       // grams
+  fat: real("fat"),           // grams
+  fiber: real("fiber"),       // grams
+  notes: text("notes"),
+  loggedAt: timestamp("logged_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const mealEntriesRelations = relations(mealEntries, ({ one }) => ({
+  user: one(users, { fields: [mealEntries.userId], references: [users.id] }),
+}));
+
+export const insertMealEntrySchema = createInsertSchema(mealEntries).omit({ id: true, createdAt: true }).extend({
+  userId: z.string().optional(),
+  mealType: z.enum(["breakfast", "lunch", "dinner", "snack"]).default("snack"),
+  calories: z.number().int().min(0).max(99999),
+  protein: z.number().min(0).max(9999).optional().nullable(),
+  carbs: z.number().min(0).max(9999).optional().nullable(),
+  fat: z.number().min(0).max(9999).optional().nullable(),
+  fiber: z.number().min(0).max(9999).optional().nullable(),
+  notes: z.string().max(500).optional().nullable(),
+  loggedAt: z.coerce.date().optional(),
+});
+
 // === TYPES ===
 export type UserStats = typeof userStats.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
@@ -329,3 +361,5 @@ export type InsertDiaryEntry = z.infer<typeof insertDiaryEntrySchema>;
 export type InsertBodyFatScan = z.infer<typeof insertBodyFatScanSchema>;
 export type InsertWishlistItem = z.infer<typeof insertWishlistItemSchema>;
 export type InsertPhysiqueEntry = z.infer<typeof insertPhysiqueEntrySchema>;
+export type MealEntry = typeof mealEntries.$inferSelect;
+export type InsertMealEntry = z.infer<typeof insertMealEntrySchema>;

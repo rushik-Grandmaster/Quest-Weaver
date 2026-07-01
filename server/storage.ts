@@ -2,9 +2,9 @@ import { db } from "./db";
 import {
   users, userStats, tasks, shopItems, inventory, scheduleItems, diaryEntries,
   aiChatMessages, conversations, messages, bodyFatScans, progressTimers, userAchievements,
-  chatSessions, wishlistItems, physiqueEntries, vaultLocks, rewardSessions,
-  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement, type ChatSession, type AiChatMessage, type WishlistItem, type PhysiqueEntry, type VaultLock, type RewardSession,
-  type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertBodyFatScan, type InsertWishlistItem, type InsertPhysiqueEntry, type InsertRewardSession
+  chatSessions, wishlistItems, physiqueEntries, vaultLocks, rewardSessions, mealEntries,
+  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement, type ChatSession, type AiChatMessage, type WishlistItem, type PhysiqueEntry, type VaultLock, type RewardSession, type MealEntry,
+  type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertBodyFatScan, type InsertWishlistItem, type InsertPhysiqueEntry, type InsertRewardSession, type InsertMealEntry
 } from "@shared/schema";
 import { eq, and, desc, sql, asc, gt } from "drizzle-orm";
 
@@ -91,6 +91,13 @@ export interface IStorage {
   getRewardSessions(userId: string): Promise<RewardSession[]>;
   createRewardSession(data: InsertRewardSession): Promise<RewardSession>;
   deleteRewardSession(id: number): Promise<void>;
+
+  // Meal entries
+  getMealEntries(userId: string, date?: string): Promise<MealEntry[]>;
+  getMealEntry(id: number): Promise<MealEntry | undefined>;
+  createMealEntry(entry: InsertMealEntry & { userId: string }): Promise<MealEntry>;
+  updateMealEntry(id: number, updates: Partial<MealEntry>): Promise<MealEntry>;
+  deleteMealEntry(id: number): Promise<void>;
 
   // Global leaderboard
   getGlobalLeaderboard(limit?: number): Promise<{ userId: string; firstName: string | null; lastName: string | null; level: number; xp: number; points: number }[]>;
@@ -446,6 +453,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRewardSession(id: number): Promise<void> {
     await db.delete(rewardSessions).where(eq(rewardSessions.id, id));
+  }
+
+  async getMealEntries(userId: string, date?: string): Promise<MealEntry[]> {
+    const query = db.select().from(mealEntries).where(eq(mealEntries.userId, userId));
+    return await query.orderBy(desc(mealEntries.loggedAt));
+  }
+
+  async getMealEntry(id: number): Promise<MealEntry | undefined> {
+    const [record] = await db.select().from(mealEntries).where(eq(mealEntries.id, id));
+    return record;
+  }
+
+  async createMealEntry(entry: InsertMealEntry & { userId: string }): Promise<MealEntry> {
+    const [record] = await db.insert(mealEntries).values(entry as any).returning();
+    return record;
+  }
+
+  async updateMealEntry(id: number, updates: Partial<MealEntry>): Promise<MealEntry> {
+    const [record] = await db.update(mealEntries).set(updates).where(eq(mealEntries.id, id)).returning();
+    return record;
+  }
+
+  async deleteMealEntry(id: number): Promise<void> {
+    await db.delete(mealEntries).where(eq(mealEntries.id, id));
   }
 
   async getGlobalLeaderboard(limit: number = 50): Promise<{ userId: string; firstName: string | null; lastName: string | null; level: number; xp: number; points: number }[]> {

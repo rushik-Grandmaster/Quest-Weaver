@@ -2,12 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  LayoutDashboard, CheckSquare, ShoppingBag, Calendar,
-  LogOut, Backpack, BookMarked, Sparkles, Flame, Activity,
-  Timer, Trophy, Shield, Swords, ShoppingCart, Lock,
-  Grid3x3, Search, X, Home as HomeIcon, ChevronRight, ShieldOff, Monitor, HelpCircle,
-} from "lucide-react";
+import { LayoutDashboard, SquareCheck as CheckSquare, ShoppingBag, Calendar, LogOut, Backpack, BookMarked, Sparkles, Flame, Activity, Timer, Trophy, Shield, Swords, ShoppingCart, Lock, Grid3x3, Search, X, Chrome as HomeIcon, ChevronRight, ShieldOff, Monitor, CircleHelp as HelpCircle, Utensils } from "lucide-react";
 import { useVaultStatus, useLockVault } from "@/components/VaultGate";
 import { useTutorial } from "@/components/Tutorial";
 
@@ -33,6 +28,7 @@ const ALL_ITEMS: NavItem[] = [
   // BODY
   { href: "/body-fat",    label: "Body Scan",      icon: Activity, group: "BODY" },
   { href: "/physique",    label: "Physique Vault", icon: Lock,     group: "BODY", ownerOnly: true },
+  { href: "/meals",       label: "Meals",          icon: Utensils, group: "BODY" },
   // ECONOMY
   { href: "/shop",        label: "Shop",        icon: ShoppingBag,  group: "ECONOMY" },
   { href: "/screen-time", label: "Screen Time", icon: Monitor,      group: "ECONOMY" },

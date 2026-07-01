@@ -10,7 +10,7 @@ import { VaultGate } from "@/components/VaultGate";
 import { WelcomeAnimation } from "@/components/WelcomeAnimation";
 import { LandingPage } from "@/components/LandingPage";
 import { TutorialProvider } from "@/components/Tutorial";
-import { Loader2 } from "lucide-react";
+import { Loader as Loader2 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { pageVariants, pageTransition } from "@/lib/animations";
@@ -34,6 +34,7 @@ import BodyFatAnalysis from "@/pages/BodyFatAnalysis";
 import Ranks from "@/pages/Ranks";
 import Physique from "@/pages/Physique";
 import ScreenTime from "@/pages/ScreenTime";
+import Meals from "@/pages/Meals";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 
@@ -124,6 +125,7 @@ function Router() {
         <Route path="/quest-timer" component={QuestTimer} />
         <Route path="/wishlist" component={Wishlist} />
         <Route path="/screen-time" component={ScreenTime} />
+        <Route path="/meals" component={Meals} />
         <Route path="/achievements" component={Achievements} />
         <Route path="/ranks" component={Ranks} />
         <Route path="/physique">
