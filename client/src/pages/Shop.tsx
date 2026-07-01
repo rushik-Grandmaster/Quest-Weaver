@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useShopItems, useBuyItem, useCreateShopItem } from "@/hooks/use-shop";
 import { useUserStats } from "@/hooks/use-gamification";
-import { Loader2, Lock, Plus, Coins, ShoppingBag, Sparkles, Gift, Star, Package, Zap, Coffee, Gamepad2, Music, Book, Shirt, Monitor, Search, X } from "lucide-react";
+import { Loader as Loader2, Lock, Plus, Coins, ShoppingBag, Sparkles, Gift, Star, Package, Zap, Coffee, Gamepad2, Music, Book, Shirt, Monitor, Search, X, Utensils, Timer, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -319,7 +319,7 @@ function ShopInspectOverlay({
 }) {
   const canAfford = gold >= item.cost;
   const remaining = gold - item.cost;
-  const isScreenTime = !!(item.durationMinutes && item.durationMinutes > 0);
+  const isScreenTime = item.category === "screen-time";
 
   return (
     <motion.div
@@ -472,7 +472,7 @@ function ShopItemCard({ item, gold, canAfford, onBuy, isBuying }: {
   const [inspecting, setInspecting] = useState(false);
   const [justBought, setJustBought] = useState(false);
   const rarity = getItemColor(item.cost);
-  const isScreenTime = !!(item.durationMinutes && item.durationMinutes > 0);
+  const isScreenTime = item.category === "screen-time";
 
   const showOverlay = hovered || inspecting;
 
@@ -534,14 +534,22 @@ function ShopItemCard({ item, gold, canAfford, onBuy, isBuying }: {
       </button>
 
       <div className="p-5 flex flex-col items-center text-center flex-1">
-        {/* Rarity badge */}
-        <div className="self-end mb-2 flex items-center gap-2">
-          {isScreenTime && (
+        {/* Rarity + category badges */}
+        <div className="self-end mb-2 flex items-center gap-2 flex-wrap justify-end">
+          {isScreenTime && item.durationMinutes && (
             <span className="hud-label px-2 py-0.5" style={{
               background: "rgba(34,211,238,0.08)", border: "1px solid rgba(34,211,238,0.3)",
               color: "rgba(34,211,238,0.85)", borderRadius: "3px", fontSize: "0.5rem",
             }}>
               ⏱ {item.durationMinutes}m
+            </span>
+          )}
+          {item.category && item.category !== "custom" && item.category !== "general" && (
+            <span className="hud-label px-2 py-0.5" style={{
+              background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)",
+              color: "rgba(165,180,252,0.7)", borderRadius: "3px", fontSize: "0.45rem",
+            }}>
+              {item.category.toUpperCase().replace("-", " ")}
             </span>
           )}
           <span className="hud-label px-2 py-0.5" style={{
@@ -644,8 +652,8 @@ export default function Shop() {
       toast({ title: "Insufficient Funds", description: "You need more gold.", variant: "destructive" });
       return;
     }
-    // Screen-time items get the ClearSpace intervention
-    if (item.durationMinutes && item.durationMinutes > 0) {
+    // Only screen-time category items get the ClearSpace intervention
+    if (item.category === "screen-time") {
       setClearSpaceItem(item);
       return;
     }
@@ -800,6 +808,15 @@ export default function Shop() {
   );
 }
 
+// ── Reward categories ─────────────────────────────────────────────────────────
+const REWARD_CATEGORIES = [
+  { value: "food",        label: "FOOD & DRINK",   icon: Utensils,   color: "rgba(249,115,22,", desc: "Meals, snacks, treats" },
+  { value: "break",       label: "BREAK",          icon: Coffee,     color: "rgba(34,197,94,",  desc: "Rest, naps, downtime" },
+  { value: "screen-time", label: "SCREEN TIME",    icon: Monitor,    color: "rgba(34,211,238,", desc: "Games, videos, socials" },
+  { value: "activity",    label: "ACTIVITY",       icon: Zap,        color: "rgba(234,179,8,",  desc: "Sports, hobbies, outings" },
+  { value: "custom",      label: "CUSTOM",         icon: Gift,       color: "rgba(165,180,252,",desc: "Anything else" },
+];
+
 // ── Extended insert schema with optional url + durationMinutes ────────────────
 const createItemSchema = insertShopItemSchema.extend({
   url: z.string().url("Enter a valid URL (e.g. https://youtube.com)").optional().or(z.literal("")),
@@ -819,7 +836,7 @@ function CreateItemDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
     const payload: any = {
       ...data,
       url: data.url || null,
-      durationMinutes: data.durationMinutes || null,
+      durationMinutes: data.category === "screen-time" ? (data.durationMinutes || null) : null,
     };
     createItem(payload, {
       onSuccess: () => {
@@ -833,13 +850,14 @@ function CreateItemDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
     });
   };
 
-  const watchDuration = form.watch("durationMinutes");
-  const isScreenTime = !!(watchDuration && Number(watchDuration) > 0);
+  const watchCategory = form.watch("category");
+  const isScreenTime = watchCategory === "screen-time";
+  const activeCat = REWARD_CATEGORIES.find(c => c.value === watchCategory) ?? REWARD_CATEGORIES[4];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[460px]"
+        className="sm:max-w-[480px]"
         style={{
           background: "rgba(4,7,18,0.98)",
           border: "1px solid rgba(99,102,241,0.3)",
@@ -858,6 +876,54 @@ function CreateItemDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+
+          {/* Category picker */}
+          <div>
+            <div className="hud-label mb-2">◈ REWARD CATEGORY</div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {REWARD_CATEGORIES.map(cat => {
+                const Icon = cat.icon;
+                const isActive = watchCategory === cat.value;
+                return (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => form.setValue("category", cat.value)}
+                    data-testid={`button-category-${cat.value}`}
+                    className="flex flex-col items-center gap-1.5 py-3 px-1 transition-all duration-200"
+                    style={{
+                      background: isActive ? `${cat.color}0.1)` : "rgba(6,10,26,0.7)",
+                      border: `1px solid ${isActive ? `${cat.color}0.55)` : "rgba(30,35,60,0.5)"}`,
+                      borderRadius: "4px",
+                      boxShadow: isActive ? `0 0 12px ${cat.color}0.15)` : "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Icon
+                      className="w-4 h-4"
+                      style={{ color: isActive ? `${cat.color}0.9)` : "rgba(100,116,139,0.5)" }}
+                    />
+                    <span
+                      className="hud-label text-center leading-tight"
+                      style={{
+                        fontSize: "0.45rem",
+                        color: isActive ? `${cat.color}0.85)` : "rgba(100,116,139,0.5)",
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {cat.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {activeCat && (
+              <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: `${activeCat.color}0.55)`, marginTop: 6, letterSpacing: "0.08em" }}>
+                ◇ {activeCat.desc}
+              </p>
+            )}
+          </div>
+
           <Field label="REWARD NAME" error={form.formState.errors.name?.message}>
             <Input
               {...form.register("name")}
@@ -904,42 +970,41 @@ function CreateItemDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
             </Field>
           </div>
 
-          {/* Screen-time section */}
-          <div style={{
-            padding: "14px", borderRadius: "4px",
-            background: isScreenTime ? "rgba(34,211,238,0.04)" : "rgba(99,102,241,0.03)",
-            border: `1px solid ${isScreenTime ? "rgba(34,211,238,0.25)" : "rgba(99,102,241,0.12)"}`,
-            transition: "all 0.3s",
-          }}>
-            <div className="hud-label mb-3" style={{ fontSize: "0.55rem", color: isScreenTime ? "rgba(34,211,238,0.7)" : "rgba(99,102,241,0.45)" }}>
-              ⏱ SCREEN-TIME SETTINGS (OPTIONAL)
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="DURATION (MIN)" error={form.formState.errors.durationMinutes?.message}>
-                <Input
-                  type="number"
-                  {...form.register("durationMinutes", { setValueAs: v => v === "" ? null : Number(v) })}
-                  placeholder="e.g. 30"
-                  data-testid="input-item-duration"
-                  min={1} max={480}
-                  style={inputStyle}
-                />
-              </Field>
-              <Field label="LAUNCH URL" error={(form.formState.errors as any).url?.message}>
-                <Input
-                  {...form.register("url")}
-                  placeholder="https://youtube.com"
-                  data-testid="input-item-url"
-                  style={inputStyle}
-                />
-              </Field>
-            </div>
-            {isScreenTime && (
+          {/* Screen-time section — only shown when screen-time category selected */}
+          {isScreenTime && (
+            <div style={{
+              padding: "14px", borderRadius: "4px",
+              background: "rgba(34,211,238,0.04)",
+              border: "1px solid rgba(34,211,238,0.25)",
+            }}>
+              <div className="hud-label mb-3" style={{ fontSize: "0.55rem", color: "rgba(34,211,238,0.7)" }}>
+                ⏱ SCREEN-TIME SESSION SETTINGS
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="DURATION (MIN)" error={form.formState.errors.durationMinutes?.message}>
+                  <Input
+                    type="number"
+                    {...form.register("durationMinutes", { setValueAs: v => v === "" ? null : Number(v) })}
+                    placeholder="e.g. 30"
+                    data-testid="input-item-duration"
+                    min={1} max={480}
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="LAUNCH URL" error={(form.formState.errors as any).url?.message}>
+                  <Input
+                    {...form.register("url")}
+                    placeholder="https://youtube.com"
+                    data-testid="input-item-url"
+                    style={inputStyle}
+                  />
+                </Field>
+              </div>
               <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(34,211,238,0.55)", marginTop: 8, letterSpacing: "0.1em" }}>
-                ◆ ClearSpace breathing gate will trigger on purchase · Session timer will appear on the Screen Time page
+                ◆ ClearSpace breathing gate triggers on purchase · Session timer appears on Screen Time page
               </p>
-            )}
-          </div>
+            </div>
+          )}
 
           <button
             type="submit"
