@@ -1104,7 +1104,7 @@ Use this data to give highly personalized advice, celebrate progress, and help $
     }
   });
 
-  // Luminous meal analysis
+  // Luminous meal analysis with web search
   app.post("/api/ai/meals/analyze", requireAuth, async (req: any, res) => {
     try {
       const { mealName, notes } = req.body;
@@ -1113,25 +1113,90 @@ Use this data to give highly personalized advice, celebrate progress, and help $
       const firstName = req.user.claims.first_name;
       const name = firstName ? (firstName.charAt(0).toUpperCase() + firstName.slice(1)) : "the user";
 
+      // Search for nutrition facts using Tavily (if API key available)
+      let nutritionContext = "";
+      const tavilyKey = process.env.TAVILY_API_KEY;
+
+      if (tavilyKey && tavilyKey.length > 0) {
+        try {
+          const searchQuery = `${mealName} nutrition facts calories protein carbs fat per serving`;
+          const searchResponse = await fetch("https://api.tavily.com/search", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${tavilyKey}`,
+            },
+            body: JSON.stringify({
+              query: searchQuery,
+              search_depth: "advanced",
+              max_results: 5,
+            }),
+          });
+
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json();
+            if (searchData.results && searchData.results.length > 0) {
+              nutritionContext = searchData.results
+                .slice(0, 3)
+                .map((r: any) => r.content)
+                .join("\n\n");
+            }
+          }
+        } catch (searchErr) {
+          console.error("Tavily search error:", searchErr);
+          // Continue without search results
+        }
+      }
+
+      const systemPrompt = nutritionContext
+        ? `You are Luminous, an elite nutrition intelligence system for ${name}'s LifeRPG. You have REAL nutrition data from web search results below. Use this data to provide ACCURATE nutrition values — do not guess. Always return ONLY valid JSON — no markdown, no extra text.
+
+WEB SEARCH RESULTS:
+${nutritionContext}
+
+Extract the most accurate nutrition values from the search results. If multiple values exist, use the most common/average for a standard restaurant serving.`
+        : `You are Luminous, an elite nutrition intelligence system for ${name}'s LifeRPG. Estimate nutrition values for a standard serving. Consider typical ingredients and portions. Always return ONLY valid JSON — no markdown, no extra text.`;
+
       const response = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: [
-          {
-            role: "system",
-            content: `You are Luminous, an elite nutrition intelligence system for ${name}'s LifeRPG. Analyze meal entries and provide precise macro estimates. Always return ONLY valid JSON — no markdown, no extra text.`
-          },
+          { role: "system", content: systemPrompt },
           {
             role: "user",
-            content: `Analyze this meal: "${mealName}"${notes ? `. Additional context: ${notes}` : ""}. Estimate the typical nutritional values for a standard serving. Return a JSON object with these exact fields: calories (integer), protein (number in grams), carbs (number in grams), fat (number in grams), fiber (number in grams), analysis (string: 2-3 sentence nutritional insight and health rating), healthScore (integer 1-10).`
+            content: `Analyze this meal: "${mealName}"${notes ? `. Additional context: ${notes}` : ""}.
+
+Return a JSON object with these EXACT fields:
+- calories (integer): total calories for ONE standard serving
+- protein (number): grams of protein
+- carbs (number): grams of carbohydrates
+- fat (number): grams of fat
+- fiber (number): grams of fiber
+- analysis (string): 2-3 sentence nutritional insight
+- healthScore (integer): 1-10 rating (10 = very healthy)
+
+IMPORTANT: Return ONLY the JSON object, no other text.`,
           }
         ],
         max_tokens: 512,
+        temperature: 0.1,
       });
 
       const rawContent = response.choices[0]?.message?.content || "{}";
       const cleaned = rawContent.replace(/```json|```/g, "").trim();
       const result = JSON.parse(cleaned);
-      res.json(result);
+
+      // Ensure all required fields exist with sensible defaults
+      const safeResult = {
+        calories: typeof result.calories === "number" ? Math.round(result.calories) : 300,
+        protein: typeof result.protein === "number" ? Math.round(result.protein * 10) / 10 : 10,
+        carbs: typeof result.carbs === "number" ? Math.round(result.carbs * 10) / 10 : 30,
+        fat: typeof result.fat === "number" ? Math.round(result.fat * 10) / 10 : 10,
+        fiber: typeof result.fiber === "number" ? Math.round(result.fiber * 10) / 10 : 3,
+        analysis: result.analysis || `${mealName} - standard serving analyzed.`,
+        healthScore: typeof result.healthScore === "number" ? Math.min(10, Math.max(1, result.healthScore)) : 5,
+      };
+
+      res.json(safeResult);
     } catch (err: any) {
       console.error("Meal analysis error:", err?.message ?? err);
       res.status(500).json({ message: "Analysis failed. Please try again." });
