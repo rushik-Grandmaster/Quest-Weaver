@@ -232,25 +232,37 @@ function QuestInspectOverlay({
 
       {/* Cooldown warning */}
       {cooldownSecs > 0 && !task.isCompleted && (
-        <div style={{
-          padding: "8px 10px", borderRadius: 4,
-          background: "rgba(234,179,8,0.08)",
-          border: "1px solid rgba(234,179,8,0.35)",
-          display: "flex", alignItems: "center", gap: 8,
-        }}>
-          <Clock style={{ width: 14, height: 14, color: "rgba(234,179,8,0.8)" }} />
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(234,179,8,0.9)", letterSpacing: "0.1em" }}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          style={{
+            padding: "8px 10px", borderRadius: 4,
+            background: "rgba(234,179,8,0.08)",
+            border: "1px solid rgba(234,179,8,0.35)",
+            display: "flex", alignItems: "center", gap: 8,
+            boxShadow: "0 0 20px rgba(234,179,8,0.15), inset 0 0 15px rgba(234,179,8,0.05)",
+          }}
+        >
+          <motion.div
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <Clock style={{ width: 14, height: 14, color: "rgba(234,179,8,0.9)" }} />
+          </motion.div>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(234,179,8,0.95)", letterSpacing: "0.1em" }}>
             ANTI-CHEAT: WAIT {cooldownSecs}s BEFORE COMPLETING
           </span>
-        </div>
+        </motion.div>
       )}
 
       {/* Complete button */}
       {!task.isCompleted && (
-        <button
+        <motion.button
           onClick={e => { e.stopPropagation(); onComplete(); }}
           data-testid={`button-inspect-complete-${task.id}`}
           disabled={cooldownSecs > 0}
+          whileHover={cooldownSecs > 0 ? {} : { scale: 1.02 }}
+          whileTap={cooldownSecs > 0 ? {} : { scale: 0.98 }}
           style={{
             width: "100%", padding: "9px 0", borderRadius: 4,
             cursor: cooldownSecs > 0 ? "not-allowed" : "pointer",
@@ -261,14 +273,30 @@ function QuestInspectOverlay({
             color: cooldownSecs > 0 ? "rgba(148,163,184,0.5)" : "white",
             fontFamily: "var(--font-mono)", fontSize: 10,
             fontWeight: 700, letterSpacing: "0.12em",
-            boxShadow: cooldownSecs > 0 ? "none" : "0 0 16px rgba(99,102,241,0.3)",
+            boxShadow: cooldownSecs > 0
+              ? "none"
+              : "0 0 20px rgba(99,102,241,0.4), 0 0 40px rgba(99,102,241,0.2), inset 0 1px 0 rgba(255,255,255,0.1)",
             opacity: cooldownSecs > 0 ? 0.6 : 1,
+            position: "relative",
+            overflow: "hidden",
           }}
         >
-          {cooldownSecs > 0
-            ? `⏱ WAIT ${cooldownSecs}s · ANTI-CHEAT ACTIVE`
-            : `◆ COMPLETE QUEST · +${task.rewardXp} XP · +${task.rewardPoints} 🪙`}
-        </button>
+          {cooldownSecs > 0 ? (
+            <motion.span
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            >
+              WAIT {cooldownSecs}s · ANTI-CHEAT ACTIVE
+            </motion.span>
+          ) : (
+            <motion.span
+              animate={{ textShadow: ["0 0 0px rgba(255,255,255,0)", "0 0 10px rgba(255,255,255,0.3)", "0 0 0px rgba(255,255,255,0)"] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            >
+              ◆ COMPLETE QUEST · +{task.rewardXp} XP · +{task.rewardPoints} 🪙
+            </motion.span>
+          )}
+        </motion.button>
       )}
     </motion.div>
   );
@@ -287,14 +315,33 @@ function QuestCard({
   const showOverlay = inspecting || hovered;
 
   return (
-    <div
+    <motion.div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { if (!inspecting) setHovered(false); }}
       className={`
         group relative bg-card rounded-2xl p-6 border transition-all duration-300 overflow-hidden
-        ${task.isCompleted ? "border-border opacity-60" : "border-border/50 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5"}
+        ${task.isCompleted ? "border-border opacity-60" : "border-border/50 hover:border-primary/50"}
       `}
-      style={{ minHeight: 220 }}
+      style={{
+        minHeight: 220,
+        boxShadow: task.isCompleted
+          ? "none"
+          : cooldownSecs > 0
+            ? "0 0 25px rgba(234,179,8,0.15), 0 0 50px rgba(234,179,8,0.08)"
+            : hovered
+              ? "0 0 30px rgba(99,102,241,0.2), 0 0 60px rgba(99,102,241,0.1)"
+              : "0 0 15px rgba(99,102,241,0.08)",
+      }}
+      animate={{
+        boxShadow: task.isCompleted
+          ? "none"
+          : cooldownSecs > 0
+            ? ["0 0 25px rgba(234,179,8,0.15), 0 0 50px rgba(234,179,8,0.08)", "0 0 35px rgba(234,179,8,0.25), 0 0 70px rgba(234,179,8,0.12)", "0 0 25px rgba(234,179,8,0.15), 0 0 50px rgba(234,179,8,0.08)"]
+            : hovered
+              ? ["0 0 30px rgba(99,102,241,0.2), 0 0 60px rgba(99,102,241,0.1)", "0 0 40px rgba(99,102,241,0.3), 0 0 80px rgba(99,102,241,0.15)", "0 0 30px rgba(99,102,241,0.2), 0 0 60px rgba(99,102,241,0.1)"]
+              : "0 0 15px rgba(99,102,241,0.08)",
+      }}
+      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
     >
       {/* Inspect pin button */}
       {!task.isCompleted && (
@@ -342,20 +389,34 @@ function QuestCard({
 
       {/* Cooldown banner on card */}
       {cooldownSecs > 0 && !task.isCompleted && (
-        <div style={{
-          marginTop: 8, padding: "4px 8px", borderRadius: 4,
-          background: "rgba(234,179,8,0.08)",
-          border: "1px solid rgba(234,179,8,0.25)",
-          display: "flex", alignItems: "center", gap: 6,
-        }}>
-          <ShieldAlert style={{ width: 11, height: 11, color: "rgba(234,179,8,0.8)" }} />
-          <span style={{
-            fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.12em",
-            color: "rgba(234,179,8,0.85)",
-          }}>
+        <motion.div
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            marginTop: 8, padding: "4px 8px", borderRadius: 4,
+            background: "rgba(234,179,8,0.08)",
+            border: "1px solid rgba(234,179,8,0.25)",
+            display: "flex", alignItems: "center", gap: 6,
+            boxShadow: "0 0 15px rgba(234,179,8,0.12), inset 0 0 10px rgba(234,179,8,0.03)",
+          }}
+        >
+          <motion.div
+            animate={{ rotate: [0, 5, -5, 0], scale: [1, 1.05, 1] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <ShieldAlert style={{ width: 11, height: 11, color: "rgba(234,179,8,0.85)", filter: "drop-shadow(0 0 4px rgba(234,179,8,0.5))" }} />
+          </motion.div>
+          <motion.span
+            animate={{ opacity: [0.7, 1, 0.7] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+            style={{
+              fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.12em",
+              color: "rgba(234,179,8,0.9)",
+            }}
+          >
             ANTI-CHEAT · {cooldownSecs}s REMAINING
-          </span>
-        </div>
+          </motion.span>
+        </motion.div>
       )}
 
       <div className="flex items-center justify-between mt-auto">
@@ -366,14 +427,29 @@ function QuestCard({
 
         <div className="flex gap-2">
           {!task.isCompleted && (
-            <Button
-              size="sm"
+            <motion.button
               onClick={onComplete}
               disabled={cooldownSecs > 0}
-              className={`${cooldownSecs > 0 ? "opacity-50 cursor-not-allowed" : ""} bg-primary hover:bg-primary/90 text-white rounded-lg shadow-lg shadow-primary/20`}
+              whileHover={cooldownSecs > 0 ? {} : { scale: 1.05 }}
+              whileTap={cooldownSecs > 0 ? {} : { scale: 0.95 }}
+              style={{
+                padding: "6px 12px", borderRadius: 6,
+                fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.08em", fontWeight: 600,
+                cursor: cooldownSecs > 0 ? "not-allowed" : "pointer",
+                background: cooldownSecs > 0
+                  ? "rgba(71,85,105,0.3)"
+                  : "linear-gradient(135deg, rgba(99,102,241,0.9), rgba(129,140,248,0.8))",
+                border: `1px solid ${cooldownSecs > 0 ? "rgba(71,85,105,0.4)" : "rgba(165,180,252,0.4)"}`,
+                color: cooldownSecs > 0 ? "rgba(148,163,184,0.5)" : "white",
+                boxShadow: cooldownSecs > 0
+                  ? "none"
+                  : "0 0 15px rgba(99,102,241,0.35), 0 0 30px rgba(99,102,241,0.15), inset 0 1px 0 rgba(255,255,255,0.15)",
+                opacity: cooldownSecs > 0 ? 0.5 : 1,
+                transition: "all 0.2s",
+              }}
             >
               {cooldownSecs > 0 ? `Wait ${cooldownSecs}s` : "Complete"}
-            </Button>
+            </motion.button>
           )}
           <Button
             variant="ghost"
@@ -397,7 +473,7 @@ function QuestCard({
           />
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
 
@@ -619,17 +695,28 @@ function CreateTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           </div>
 
           {/* Anti-cheat info */}
-          <div style={{
-            padding: "8px 10px", borderRadius: 4,
-            background: "rgba(99,102,241,0.06)",
-            border: "1px solid rgba(99,102,241,0.18)",
-            display: "flex", alignItems: "center", gap: 8,
-          }}>
-            <ShieldAlert style={{ width: 14, height: 14, color: "rgba(99,102,241,0.7)" }} />
-            <span style={{ fontSize: 11, color: "rgba(165,180,252,0.8)" }}>
+          <motion.div
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            style={{
+              padding: "8px 10px", borderRadius: 4,
+              background: "rgba(99,102,241,0.06)",
+              border: "1px solid rgba(99,102,241,0.18)",
+              display: "flex", alignItems: "center", gap: 8,
+              boxShadow: "0 0 20px rgba(99,102,241,0.08), inset 0 0 15px rgba(99,102,241,0.03)",
+            }}
+          >
+            <motion.div
+              animate={{ scale: [1, 1.1, 1], rotate: [0, 3, -3, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <ShieldAlert style={{ width: 14, height: 14, color: "rgba(99,102,241,0.8)", filter: "drop-shadow(0 0 5px rgba(99,102,241,0.5))" }} />
+            </motion.div>
+            <span style={{ fontSize: 11, color: "rgba(165,180,252,0.85)" }}>
               Anti-cheat: Rewards capped per difficulty. 30s cooldown before completion.
             </span>
-          </div>
+          </motion.div>
 
           <Button type="submit" className="w-full" disabled={isPending}>
             {isPending ? "Creating..." : "Create Quest"}
