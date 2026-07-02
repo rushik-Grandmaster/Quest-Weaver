@@ -231,11 +231,24 @@ export async function registerRoutes(
     res.json(result);
   });
 
+  // Hard caps per difficulty to prevent reward exploitation
+  const REWARD_CAPS: Record<string, { maxXp: number; maxPoints: number }> = {
+    easy:   { maxXp: 50,  maxPoints: 25  },
+    medium: { maxXp: 150, maxPoints: 75  },
+    hard:   { maxXp: 500, maxPoints: 250 },
+  };
+
   app.post(api.tasks.create.path, requireAuth, async (req: any, res) => {
     try {
       const parsed = api.tasks.create.input.parse(req.body);
-      const input = { ...parsed, userId: req.user.claims.sub };
-      const task = await storage.createTask(input as any);
+      const caps = REWARD_CAPS[parsed.difficulty ?? "easy"] ?? REWARD_CAPS.easy;
+      const safeParsed = {
+        ...parsed,
+        rewardXp:     Math.min(parsed.rewardXp ?? 10, caps.maxXp),
+        rewardPoints: Math.min(parsed.rewardPoints ?? 5, caps.maxPoints),
+        userId: req.user.claims.sub,
+      };
+      const task = await storage.createTask(safeParsed as any);
       res.status(201).json(task);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -264,6 +277,9 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
+  // Minimum time (ms) a task must exist before it can be completed
+  const COMPLETION_COOLDOWN_MS = 30_000; // 30 seconds
+
   app.post(api.tasks.complete.path, requireAuth, async (req: any, res) => {
     const userId = req.user.claims.sub;
     const task = await storage.getTask(Number(req.params.id));
@@ -279,6 +295,17 @@ export async function registerRoutes(
       return res.json({ task, stats, leveledUp: false });
     }
 
+    // Cooldown check — prevent instant quest gaming
+    const ageMs = Date.now() - new Date(task.createdAt).getTime();
+    if (ageMs < COMPLETION_COOLDOWN_MS) {
+      const secondsLeft = Math.ceil((COMPLETION_COOLDOWN_MS - ageMs) / 1000);
+      return res.status(429).json({
+        code: "TOO_SOON",
+        message: `Quest is too fresh. Try again in ${secondsLeft}s.`,
+        secondsLeft,
+      });
+    }
+
     const taskUpdates: Record<string, any> = { lastCompletedAt: new Date() };
     if (task.category === "one_time") taskUpdates.isCompleted = true;
     const updatedTask = await storage.updateTask(task.id, taskUpdates);
@@ -286,8 +313,13 @@ export async function registerRoutes(
     let stats = await storage.getUserStats(userId);
     if (!stats) stats = await storage.createUserStats(userId);
 
-    const { level, xp, leveledUp } = applyXp(stats.level, stats.xp, task.rewardXp);
-    const newPoints = stats.points + task.rewardPoints;
+    // Cap rewards at completion too (guards against pre-cap tasks or direct API abuse)
+    const caps = REWARD_CAPS[task.difficulty ?? "easy"] ?? REWARD_CAPS.easy;
+    const safeXp     = Math.min(task.rewardXp, caps.maxXp);
+    const safePoints = Math.min(task.rewardPoints, caps.maxPoints);
+
+    const { level, xp, leveledUp } = applyXp(stats.level, stats.xp, safeXp);
+    const newPoints = stats.points + safePoints;
     const updatedStats = await storage.updateUserStats(userId, { xp, points: newPoints, level });
 
     const newAchievements = await checkAndAwardAchievements(userId, {

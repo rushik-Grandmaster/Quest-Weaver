@@ -42,7 +42,14 @@ export function useCompleteTask() {
     mutationFn: async (id: number) => {
       const url = buildUrl(api.tasks.complete.path, { id });
       const res = await fetch(url, { method: "POST", credentials: "include" });
-      if (!res.ok) throw new Error("Failed to complete task");
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        if (res.status === 429 && error.code === "TOO_SOON") {
+          const secs = error.secondsLeft ?? 30;
+          throw new Error(`ANTI-CHEAT: Wait ${secs} more seconds before completing.`);
+        }
+        throw new Error(error.message || "Failed to complete task");
+      }
       return api.tasks.complete.responses[200].parse(await res.json());
     },
     onSuccess: (data) => {
