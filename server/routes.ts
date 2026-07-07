@@ -233,9 +233,9 @@ export async function registerRoutes(
 
   // Silent reward caps per difficulty (anti-cheat - no visible enforcement)
   const REWARD_CAPS: Record<string, { maxXp: number; maxPoints: number }> = {
-    easy:   { maxXp: 25,  maxPoints: 5   },
-    medium: { maxXp: 50,  maxPoints: 10  },
-    hard:   { maxXp: 100, maxPoints: 20  },
+    easy:   { maxXp: 25,  maxPoints: 25  },
+    medium: { maxXp: 50,  maxPoints: 50  },
+    hard:   { maxXp: 100, maxPoints: 100 },
   };
 
   // Trust score decay and thresholds (hidden from user)

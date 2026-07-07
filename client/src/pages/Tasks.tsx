@@ -470,7 +470,7 @@ function CreateTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
     resolver: zodResolver(insertTaskSchema),
     defaultValues: {
       title: "", description: "", category: "one_time", difficulty: "easy",
-      rewardXp: 10, rewardPoints: 5,
+      rewardXp: 15, rewardPoints: 15,
     },
   });
 
@@ -526,9 +526,9 @@ function CreateTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
               <label className="text-sm font-medium">Difficulty</label>
               <Select onValueChange={(val) => {
                 form.setValue("difficulty", val as any);
-                if (val === "easy")   { form.setValue("rewardXp", 15);  form.setValue("rewardPoints", 3); }
-                if (val === "medium") { form.setValue("rewardXp", 30);  form.setValue("rewardPoints", 6); }
-                if (val === "hard")   { form.setValue("rewardXp", 60);  form.setValue("rewardPoints", 12); }
+                if (val === "easy")   { form.setValue("rewardXp", 15);  form.setValue("rewardPoints", 15); }
+                if (val === "medium") { form.setValue("rewardXp", 30);  form.setValue("rewardPoints", 30); }
+                if (val === "hard")   { form.setValue("rewardXp", 60);  form.setValue("rewardPoints", 60); }
               }} defaultValue="easy">
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
