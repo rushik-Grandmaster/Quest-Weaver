@@ -2,8 +2,8 @@ import { db } from "./db";
 import {
   users, userStats, tasks, shopItems, inventory, scheduleItems, diaryEntries,
   aiChatMessages, conversations, messages, bodyFatScans, progressTimers, userAchievements,
-  chatSessions, wishlistItems, physiqueEntries, vaultLocks, rewardSessions, mealEntries,
-  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement, type ChatSession, type AiChatMessage, type WishlistItem, type PhysiqueEntry, type VaultLock, type RewardSession, type MealEntry,
+  chatSessions, wishlistItems, physiqueEntries, vaultLocks, rewardSessions, mealEntries, auditLogs,
+  type UserStats, type Task, type ShopItem, type InventoryItem, type ScheduleItem, type DiaryEntry, type BodyFatScan, type ProgressTimer, type UserAchievement, type ChatSession, type AiChatMessage, type WishlistItem, type PhysiqueEntry, type VaultLock, type RewardSession, type MealEntry, type AuditLog,
   type InsertTask, type InsertShopItem, type InsertScheduleItem, type InsertDiaryEntry, type InsertBodyFatScan, type InsertWishlistItem, type InsertPhysiqueEntry, type InsertRewardSession, type InsertMealEntry
 } from "@shared/schema";
 import { eq, and, desc, sql, asc, gt } from "drizzle-orm";
@@ -98,6 +98,11 @@ export interface IStorage {
   createMealEntry(entry: InsertMealEntry & { userId: string }): Promise<MealEntry>;
   updateMealEntry(id: number, updates: Partial<MealEntry>): Promise<MealEntry>;
   deleteMealEntry(id: number): Promise<void>;
+
+  // Audit logs (stealth anti-cheat)
+  createAuditLog(log: { userId: string; taskId: number; taskCreatedAt: Date; completedAt: Date; timeDeltaMs: number; rewardXp: number; rewardPoints: number; appliedXp: number; appliedPoints: number; trustScoreAtCompletion: number; flagged: boolean }): Promise<AuditLog>;
+  getUserAuditLogs(userId: string, limit?: number): Promise<AuditLog[]>;
+  getRecentCompletions(userId: string, withinMs: number): Promise<AuditLog[]>;
 
   // Global leaderboard
   getGlobalLeaderboard(limit?: number): Promise<{ userId: string; firstName: string | null; lastName: string | null; level: number; xp: number; points: number }[]>;
@@ -477,6 +482,26 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMealEntry(id: number): Promise<void> {
     await db.delete(mealEntries).where(eq(mealEntries.id, id));
+  }
+
+  // Audit logs (stealth anti-cheat)
+  async createAuditLog(log: { userId: string; taskId: number; taskCreatedAt: Date; completedAt: Date; timeDeltaMs: number; rewardXp: number; rewardPoints: number; appliedXp: number; appliedPoints: number; trustScoreAtCompletion: number; flagged: boolean }): Promise<AuditLog> {
+    const [record] = await db.insert(auditLogs).values(log).returning();
+    return record;
+  }
+
+  async getUserAuditLogs(userId: string, limit: number = 100): Promise<AuditLog[]> {
+    return await db.select().from(auditLogs)
+      .where(eq(auditLogs.userId, userId))
+      .orderBy(desc(auditLogs.completedAt))
+      .limit(limit);
+  }
+
+  async getRecentCompletions(userId: string, withinMs: number): Promise<AuditLog[]> {
+    const cutoff = new Date(Date.now() - withinMs);
+    return await db.select().from(auditLogs)
+      .where(and(eq(auditLogs.userId, userId), gt(auditLogs.completedAt, cutoff)))
+      .orderBy(desc(auditLogs.completedAt));
   }
 
   async getGlobalLeaderboard(limit: number = 50): Promise<{ userId: string; firstName: string | null; lastName: string | null; level: number; xp: number; points: number }[]> {

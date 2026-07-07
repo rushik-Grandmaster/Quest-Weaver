@@ -231,12 +231,18 @@ export async function registerRoutes(
     res.json(result);
   });
 
-  // Hard caps per difficulty to prevent reward exploitation
+  // Silent reward caps per difficulty (anti-cheat - no visible enforcement)
   const REWARD_CAPS: Record<string, { maxXp: number; maxPoints: number }> = {
-    easy:   { maxXp: 50,  maxPoints: 25  },
-    medium: { maxXp: 150, maxPoints: 75  },
-    hard:   { maxXp: 500, maxPoints: 250 },
+    easy:   { maxXp: 25,  maxPoints: 5   },
+    medium: { maxXp: 50,  maxPoints: 10  },
+    hard:   { maxXp: 100, maxPoints: 20  },
   };
+
+  // Trust score decay and thresholds (hidden from user)
+  const TRUST_PENALTY_FAST_COMPLETE = 5;     // penalty for completing < 60s
+  const TRUST_PENALTY_SUSPICIOUS = 10;       // penalty for suspicious patterns
+  const TRUST_RECOVERY_PER_HOUR = 2;         // slow recovery
+  const TRUST_MIN_REDUCTION_MULTIPLIER = 50; // below this = half rewards
 
   app.post(api.tasks.create.path, requireAuth, async (req: any, res) => {
     try {
@@ -277,7 +283,7 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
-  // Minimum time (ms) a task must exist before it can be completed
+  // Minimum time (ms) a task must exist before completion (stealth enforcement)
   const COMPLETION_COOLDOWN_MS = 30_000; // 30 seconds
 
   app.post(api.tasks.complete.path, requireAuth, async (req: any, res) => {
@@ -295,14 +301,12 @@ export async function registerRoutes(
       return res.json({ task, stats, leveledUp: false });
     }
 
-    // Cooldown check — prevent instant quest gaming
+    // Stealth cooldown - return generic "processing" error instead of revealing anti-cheat
     const ageMs = Date.now() - new Date(task.createdAt).getTime();
     if (ageMs < COMPLETION_COOLDOWN_MS) {
-      const secondsLeft = Math.ceil((COMPLETION_COOLDOWN_MS - ageMs) / 1000);
-      return res.status(429).json({
-        code: "TOO_SOON",
-        message: `Quest is too fresh. Try again in ${secondsLeft}s.`,
-        secondsLeft,
+      return res.status(409).json({
+        code: "PROCESSING",
+        message: "Quest is still being validated. Please try again shortly.",
       });
     }
 
@@ -313,14 +317,56 @@ export async function registerRoutes(
     let stats = await storage.getUserStats(userId);
     if (!stats) stats = await storage.createUserStats(userId);
 
-    // Cap rewards at completion too (guards against pre-cap tasks or direct API abuse)
+    // Silent reward capping
     const caps = REWARD_CAPS[task.difficulty ?? "easy"] ?? REWARD_CAPS.easy;
-    const safeXp     = Math.min(task.rewardXp, caps.maxXp);
-    const safePoints = Math.min(task.rewardPoints, caps.maxPoints);
+    const cappedXp = Math.min(task.rewardXp, caps.maxXp);
+    const cappedPoints = Math.min(task.rewardPoints, caps.maxPoints);
 
-    const { level, xp, leveledUp } = applyXp(stats.level, stats.xp, safeXp);
-    const newPoints = stats.points + safePoints;
-    const updatedStats = await storage.updateUserStats(userId, { xp, points: newPoints, level });
+    // Stealth trust score calculation
+    let trustScore = stats.trustScore ?? 100;
+    const completedAt = new Date();
+    const taskCreatedAt = new Date(task.createdAt);
+    const timeDeltaMs = completedAt.getTime() - taskCreatedAt.getTime();
+
+    // Behavioral pattern detection
+    let flagged = false;
+    const recentCompletions = await storage.getRecentCompletions(userId, 60_000); // last minute
+    const fastCompletions = recentCompletions.filter(l => l.timeDeltaMs < 60_000).length;
+
+    // Apply hidden trust penalties
+    if (timeDeltaMs < 60_000) {
+      trustScore = Math.max(0, trustScore - TRUST_PENALTY_FAST_COMPLETE);
+      flagged = true;
+    }
+    if (fastCompletions >= 3) {
+      trustScore = Math.max(0, trustScore - TRUST_PENALTY_SUSPICIOUS);
+      flagged = true;
+    }
+
+    // Hidden trust multiplier (user never sees this)
+    const trustMultiplier = trustScore >= TRUST_MIN_REDUCTION_MULTIPLIER ? 1 : 0.5;
+    const appliedXp = Math.floor(cappedXp * trustMultiplier);
+    const appliedPoints = Math.floor(cappedPoints * trustMultiplier);
+
+    // Update stats with trust score (not returned to frontend)
+    const { level, xp, leveledUp } = applyXp(stats.level, stats.xp, appliedXp);
+    const newPoints = stats.points + appliedPoints;
+    const updatedStats = await storage.updateUserStats(userId, { xp, points: newPoints, level, trustScore });
+
+    // Silent audit logging
+    await storage.createAuditLog({
+      userId,
+      taskId: task.id,
+      taskCreatedAt,
+      completedAt,
+      timeDeltaMs,
+      rewardXp: cappedXp,
+      rewardPoints: cappedPoints,
+      appliedXp,
+      appliedPoints,
+      trustScoreAtCompletion: trustScore,
+      flagged,
+    });
 
     const newAchievements = await checkAndAwardAchievements(userId, {
       type: leveledUp ? "level_up" : "task_complete",
@@ -328,7 +374,8 @@ export async function registerRoutes(
       taskDifficulty: task.difficulty,
     });
 
-    res.json({ task: updatedTask, stats: updatedStats, leveledUp, newAchievements });
+    // Return clean response (no anti-cheat info)
+    res.json({ task: updatedTask, stats: { ...updatedStats, trustScore: undefined }, leveledUp, newAchievements });
   });
 
   // Shop

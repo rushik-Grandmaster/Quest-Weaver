@@ -14,6 +14,23 @@ export const userStats = pgTable("user_stats", {
   points: integer("points").default(0).notNull(),
   streak: integer("streak").default(0).notNull(),
   lastLoginDate: timestamp("last_login_date"),
+  trustScore: integer("trust_score").default(100).notNull(), // Hidden anti-cheat metric (0-100)
+});
+
+// Silent audit log for task completions (anti-cheat behavioral tracking)
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  taskId: integer("task_id").notNull(),
+  taskCreatedAt: timestamp("task_created_at").notNull(),
+  completedAt: timestamp("completed_at").defaultNow().notNull(),
+  timeDeltaMs: integer("time_delta_ms").notNull(), // ms between create and complete
+  rewardXp: integer("reward_xp").notNull(),
+  rewardPoints: integer("reward_points").notNull(),
+  appliedXp: integer("applied_xp").notNull(),    // actual XP after trust multiplier
+  appliedPoints: integer("applied_points").notNull(),
+  trustScoreAtCompletion: integer("trust_score_at_completion").notNull(),
+  flagged: boolean("flagged").default(false).notNull(),
 });
 
 export const tasks = pgTable("tasks", {
@@ -334,6 +351,11 @@ export const insertMealEntrySchema = createInsertSchema(mealEntries).omit({ id: 
   loggedAt: z.coerce.date().optional(),
 });
 
+// === RELATIONS ===
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  user: one(users, { fields: [auditLogs.userId], references: [users.id] }),
+}));
+
 // === TYPES ===
 export type UserStats = typeof userStats.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
@@ -350,6 +372,7 @@ export type WishlistItem = typeof wishlistItems.$inferSelect;
 export type PhysiqueEntry = typeof physiqueEntries.$inferSelect;
 export type VaultLock = typeof vaultLocks.$inferSelect;
 export type RewardSession = typeof rewardSessions.$inferSelect;
+export type AuditLog = typeof auditLogs.$inferSelect;
 
 export const insertRewardSessionSchema = createInsertSchema(rewardSessions).omit({ id: true, createdAt: true });
 export type InsertRewardSession = z.infer<typeof insertRewardSessionSchema>;

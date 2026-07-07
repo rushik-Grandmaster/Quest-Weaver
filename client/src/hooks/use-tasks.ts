@@ -44,9 +44,9 @@ export function useCompleteTask() {
       const res = await fetch(url, { method: "POST", credentials: "include" });
       if (!res.ok) {
         const error = await res.json().catch(() => ({}));
-        if (res.status === 429 && error.code === "TOO_SOON") {
-          const secs = error.secondsLeft ?? 30;
-          throw new Error(`ANTI-CHEAT: Wait ${secs} more seconds before completing.`);
+        // Stealth handling - generic message without revealing anti-cheat
+        if (res.status === 409 && error.code === "PROCESSING") {
+          throw new Error("Quest is still being validated. Please try again shortly.");
         }
         throw new Error(error.message || "Failed to complete task");
       }
