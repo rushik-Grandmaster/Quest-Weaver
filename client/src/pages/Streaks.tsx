@@ -1,10 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Flame, CheckCircle2, Trophy, Calendar } from "lucide-react";
+import { Flame, CircleCheck as CheckCircle2, Trophy, Calendar } from "lucide-react";
 import { Task, UserStats } from "@shared/schema";
 import { motion } from "framer-motion";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Streaks() {
+  const { user } = useAuth();
+  const playerName = user?.firstName
+    ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1) + " Sama"
+    : "Hunter";
   const { data: tasks, isLoading: tasksLoading } = useQuery<Task[]>({
     queryKey: ["/api/tasks"],
   });
@@ -34,7 +39,7 @@ export default function Streaks() {
           <Flame className="text-orange-500 w-10 h-10" /> Streaks & Achievements
         </h1>
         <p className="text-muted-foreground mt-2">
-          Track your consistency and maintain your momentum, Rushik Sama.
+          Track your consistency and maintain your momentum, {playerName}.
         </p>
       </motion.div>
 

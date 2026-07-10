@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Lock, Star, Loader2 } from "lucide-react";
+import { Trophy, Lock, Star, Loader as Loader2 } from "lucide-react";
 import { ACHIEVEMENTS, RARITY_COLORS, type Achievement } from "@shared/achievements";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { format } from "date-fns";
+import { useAuth } from "@/hooks/use-auth";
 
 type AchievementWithStatus = Achievement & {
   unlocked: boolean;
@@ -25,6 +26,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function Achievements() {
   const [filter, setFilter] = useState<string>("all");
+  const { user } = useAuth();
+  const playerName = user?.firstName
+    ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1) + " Sama"
+    : "Hunter";
 
   const { data: achievements, isLoading } = useQuery<AchievementWithStatus[]>({
     queryKey: ["/api/achievements"],
@@ -54,7 +59,7 @@ export default function Achievements() {
             <Trophy className="text-yellow-500" /> Achievements
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Milestones you've conquered on your journey, Rushik Sama.
+            Milestones you've conquered on your journey, {playerName}.
           </p>
         </div>
 

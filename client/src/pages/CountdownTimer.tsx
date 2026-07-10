@@ -4,12 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Timer, Skull, ShieldCheck, Sparkles, Clock, AlertTriangle,
-  Play, Square, ToggleLeft, ToggleRight, ExternalLink
-} from "lucide-react";
+import { Timer, Skull, ShieldCheck, Sparkles, Clock, TriangleAlert as AlertTriangle, Play, Square, ToggleLeft, ToggleRight, ExternalLink } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { useUserStats } from "@/hooks/use-gamification";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
@@ -49,8 +47,12 @@ function getPercentRemaining(startTime: string, endTime: string) {
 
 export default function CountdownTimer() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const { data: stats } = useUserStats();
   const [, navigate] = useLocation();
+  const playerName = user?.firstName
+    ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1) + " Sama"
+    : "Hunter";
 
   const [timerEnabled, setTimerEnabled] = useState(false);
   const [activeTimer, setActiveTimer] = useState<TimerData | null>(null);
@@ -123,7 +125,7 @@ export default function CountdownTimer() {
           setTimerEnabled(false);
           toast({
             title: "🛡️ Progress Saved!",
-            description: "You leveled up in time! Well done, Rushik Sama.",
+            description: `You leveled up in time! Well done, ${playerName}.`,
           });
         }
       } catch {
@@ -232,7 +234,7 @@ export default function CountdownTimer() {
               <p className="text-sm text-muted-foreground">
                 {lastResetEvent === "expired_reset"
                   ? "You failed to level up before the timer expired. All XP, gold, and levels have been reset to zero."
-                  : "You leveled up in time, Rushik Sama! The pressure paid off — your progress is safe."}
+                  : `You leveled up in time, ${playerName}! The pressure paid off — your progress is safe.`}
               </p>
             </div>
             <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setLastResetEvent(null)}>✕</Button>

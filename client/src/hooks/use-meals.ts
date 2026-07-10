@@ -62,3 +62,14 @@ export function useAnalyzeMeal() {
       }),
   });
 }
+
+export function useAnalyzeMealPhoto() {
+  return useMutation({
+    mutationFn: (data: { imageBase64: string; mimeType?: string }) =>
+      fetchJson("/api/ai/meals/analyze-photo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+  });
+}

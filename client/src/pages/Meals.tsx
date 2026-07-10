@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Utensils, Plus, Trash2, Sparkles, Flame, Zap, Droplets, Loader as Loader2, X, ChevronDown, ChevronUp, ChartBar as BarChart3, Coffee, Sun, Moon, Apple, TrendingUp } from "lucide-react";
+import { Utensils, Plus, Trash2, Sparkles, Flame, Zap, Droplets, Loader as Loader2, X, ChevronDown, ChevronUp, ChartBar as BarChart3, Coffee, Sun, Moon, Apple, TrendingUp, Camera, ImagePlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,7 +13,9 @@ import {
   useCreateMealEntry,
   useDeleteMealEntry,
   useAnalyzeMeal,
+  useAnalyzeMealPhoto,
 } from "@/hooks/use-meals";
+import { useRef } from "react";
 import type { MealEntry } from "@shared/schema";
 import { format, isToday, isYesterday, parseISO, startOfDay, isSameDay } from "date-fns";
 
@@ -43,6 +45,18 @@ const mealFormSchema = z.object({
   notes: z.string().max(500).optional(),
 });
 type MealFormData = z.infer<typeof mealFormSchema>;
+
+type PhotoAnalysisResult = {
+  foodName: string;
+  portionDescription: string;
+  calories: number;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  fiber: number | null;
+  confidence: "high" | "medium" | "low";
+  analysis: string;
+};
 
 // ── Macro pill ────────────────────────────────────────────────────────────────
 function MacroPill({ label, value, unit, color }: { label: string; value: number | null | undefined; unit: string; color: string }) {
@@ -221,11 +235,39 @@ function LuminousPanel({ mealName, notes, onApply, onClose }: {
   );
 }
 
+// ── Confidence badge ─────────────────────────────────────────────────────────
+const CONF_COLORS: Record<string, string> = {
+  high: "rgba(74,222,128,",
+  medium: "rgba(251,191,36,",
+  low: "rgba(239,68,68,",
+};
+function ConfidenceBadge({ confidence }: { confidence: string }) {
+  const c = CONF_COLORS[confidence] ?? CONF_COLORS.medium;
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 3,
+      padding: "2px 6px", borderRadius: 3,
+      background: `${c}0.1)`, border: `1px solid ${c}0.3)`,
+      fontFamily: "var(--font-mono)", fontSize: 8,
+      color: `${c}0.9)`, letterSpacing: "0.08em",
+    }}>
+      ◆ AI · {confidence.toUpperCase()}
+    </span>
+  );
+}
+
 // ── Add Meal Dialog ────────────────────────────────────────────────────────────
 function AddMealDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const { mutate: create, isPending } = useCreateMealEntry();
   const { toast } = useToast();
   const [showLuminous, setShowLuminous] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [photoMime, setPhotoMime] = useState<string>("image/jpeg");
+  const [photoResult, setPhotoResult] = useState<PhotoAnalysisResult | null>(null);
+  const [aiConfidence, setAiConfidence] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { mutate: analyzePhoto, isPending: isAnalyzingPhoto } = useAnalyzeMealPhoto();
 
   const form = useForm<MealFormData>({
     resolver: zodResolver(mealFormSchema),
@@ -236,6 +278,50 @@ function AddMealDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
   const watchNotes = form.watch("notes");
   const watchMealType = form.watch("mealType");
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const mime = file.type || "image/jpeg";
+    setPhotoMime(mime);
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const dataUrl = ev.target?.result as string;
+      setPhotoPreview(dataUrl);
+      const base64 = dataUrl.split(",")[1];
+      setPhotoBase64(base64);
+      setPhotoResult(null);
+      analyzePhoto({ imageBase64: base64, mimeType: mime }, {
+        onSuccess: (data: any) => {
+          setPhotoResult(data);
+          setAiConfidence(data.confidence);
+          form.setValue("name", data.foodName);
+          form.setValue("calories", data.calories);
+          if (data.protein != null) form.setValue("protein", data.protein);
+          if (data.carbs != null) form.setValue("carbs", data.carbs);
+          if (data.fat != null) form.setValue("fat", data.fat);
+          if (data.fiber != null) form.setValue("fiber", data.fiber);
+          if (data.portionDescription) form.setValue("notes", data.portionDescription);
+        },
+        onError: (err: any) => toast({ title: "Photo analysis failed", description: err.message, variant: "destructive" }),
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearPhoto = () => {
+    setPhotoPreview(null);
+    setPhotoBase64(null);
+    setPhotoResult(null);
+    setAiConfidence(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const resetAll = () => {
+    form.reset();
+    setShowLuminous(false);
+    clearPhoto();
+  };
+
   const onSubmit = (data: MealFormData) => {
     create({
       ...data,
@@ -244,12 +330,13 @@ function AddMealDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
       fat: data.fat ?? null,
       fiber: data.fiber ?? null,
       notes: data.notes || null,
-    }, {
+      aiIdentified: !!photoResult,
+      aiConfidence: aiConfidence ?? null,
+    } as any, {
       onSuccess: () => {
         toast({ title: "Meal Logged", description: `${data.name} has been added to your log.` });
         onOpenChange(false);
-        form.reset();
-        setShowLuminous(false);
+        resetAll();
       },
       onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
     });
@@ -258,7 +345,7 @@ function AddMealDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
   const activeCat = mealTypeConfig(watchMealType);
 
   return (
-    <Dialog open={open} onOpenChange={v => { onOpenChange(v); if (!v) { form.reset(); setShowLuminous(false); } }}>
+    <Dialog open={open} onOpenChange={v => { onOpenChange(v); if (!v) resetAll(); }}>
       <DialogContent
         className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto"
         style={{
@@ -270,15 +357,130 @@ function AddMealDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
       >
         <DialogHeader>
           <div className="hud-label mb-1">◈ NUTRITION LOG</div>
-          <DialogTitle
-            className="text-xl font-black tracking-wider uppercase"
-            style={{ fontFamily: "var(--font-display)", color: "rgba(199,210,254,0.95)" }}
-          >
-            Log Meal
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle
+              className="text-xl font-black tracking-wider uppercase"
+              style={{ fontFamily: "var(--font-display)", color: "rgba(199,210,254,0.95)" }}
+            >
+              Log Meal
+            </DialogTitle>
+            {/* Photo capture button */}
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isAnalyzingPhoto}
+                title="Snap a photo to auto-identify food"
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "6px 10px", borderRadius: 3,
+                  background: photoPreview ? "rgba(74,222,128,0.1)" : "rgba(99,102,241,0.08)",
+                  border: `1px solid ${photoPreview ? "rgba(74,222,128,0.4)" : "rgba(99,102,241,0.3)"}`,
+                  color: photoPreview ? "rgba(134,239,172,0.9)" : "rgba(165,180,252,0.8)",
+                  fontFamily: "var(--font-mono)", fontSize: 9, cursor: isAnalyzingPhoto ? "wait" : "pointer",
+                  letterSpacing: "0.07em",
+                }}
+              >
+                {isAnalyzingPhoto
+                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                  : <Camera className="w-3 h-3" />}
+                {isAnalyzingPhoto ? "SCANNING..." : "SNAP PHOTO"}
+              </button>
+            </div>
+          </div>
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-1">
+
+          {/* Photo preview */}
+          <AnimatePresence>
+            {photoPreview && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                style={{
+                  position: "relative", borderRadius: 4, overflow: "hidden",
+                  border: isAnalyzingPhoto ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(74,222,128,0.3)",
+                }}
+              >
+                <img
+                  src={photoPreview}
+                  alt="Food preview"
+                  style={{ width: "100%", maxHeight: 200, objectFit: "cover", display: "block" }}
+                />
+                {isAnalyzingPhoto && (
+                  <div style={{
+                    position: "absolute", inset: 0,
+                    background: "rgba(4,7,18,0.75)",
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8,
+                  }}>
+                    <Loader2 className="w-6 h-6 animate-spin" style={{ color: "rgba(165,180,252,0.8)" }} />
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(165,180,252,0.8)", letterSpacing: "0.1em" }}>
+                      LUMINOUS SCANNING...
+                    </span>
+                  </div>
+                )}
+                {photoResult && !isAnalyzingPhoto && (
+                  <div style={{
+                    position: "absolute", bottom: 0, left: 0, right: 0,
+                    padding: "8px 10px",
+                    background: "linear-gradient(transparent, rgba(4,7,18,0.95))",
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                  }}>
+                    <div>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(199,210,254,0.9)", fontWeight: 700 }}>
+                        {photoResult.foodName}
+                      </span>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(245,158,11,0.8)", marginLeft: 8 }}>
+                        ~{photoResult.calories} kcal
+                      </span>
+                    </div>
+                    <ConfidenceBadge confidence={photoResult.confidence} />
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={clearPhoto}
+                  style={{
+                    position: "absolute", top: 6, right: 6,
+                    background: "rgba(4,7,18,0.8)", border: "1px solid rgba(100,116,139,0.3)",
+                    borderRadius: 3, padding: 4, cursor: "pointer",
+                  }}
+                >
+                  <X style={{ width: 11, height: 11, color: "rgba(100,116,139,0.8)" }} />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Photo analysis insight */}
+          <AnimatePresence>
+            {photoResult && !isAnalyzingPhoto && photoResult.analysis && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                style={{
+                  padding: "10px 12px", borderRadius: 3,
+                  background: "rgba(74,222,128,0.04)",
+                  border: "1px solid rgba(74,222,128,0.2)",
+                }}
+              >
+                <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(134,239,172,0.75)", lineHeight: 1.7 }}>
+                  ◇ {photoResult.analysis}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Meal type selector */}
           <div>
@@ -500,6 +702,9 @@ function MealCard({ entry, onDelete }: { entry: MealEntry; onDelete: () => void 
           <span className="hud-label" style={{ fontSize: "0.45rem", color: `${cat.color}0.7)` }}>
             {cat.label}
           </span>
+          {(entry as any).aiIdentified && (
+            <ConfidenceBadge confidence={(entry as any).aiConfidence ?? "medium"} />
+          )}
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <span style={{

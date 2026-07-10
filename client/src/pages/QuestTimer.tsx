@@ -2,13 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { motion, AnimatePresence } from "framer-motion";
 import { fadeUpBlur, fadeTransition } from "@/lib/animations";
 import type { Task } from "@shared/schema";
-import {
-  Swords, Play, Square, CheckCircle2, SkullIcon,
-  AlertTriangle, Clock, Trophy, Coins, Plus, Minus,
-} from "lucide-react";
+import { Swords, Play, Square, CircleCheck as CheckCircle2, Skull as SkullIcon, TriangleAlert as AlertTriangle, Clock, Trophy, Coins, Plus, Minus } from "lucide-react";
 
 /* ─── helpers ─────────────────────────────────────────────── */
 function fmtTime(ms: number): string {
@@ -77,6 +75,10 @@ type Result = "completed" | "abandoned" | null;
 
 export default function QuestTimer() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const playerName = user?.firstName
+    ? user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1) + " Sama"
+    : "Hunter";
 
   /* ── server data ──────────────────────────────────────── */
   const { data: tasks = [] } = useQuery<Task[]>({ queryKey: ["/api/tasks"] });
@@ -150,7 +152,7 @@ export default function QuestTimer() {
       penaltyMutation.mutate();
       toast({
         title: `⚠ -5 GOLD PENALTY`,
-        description: `${newCount * 5} gold lost for overtime. Complete your quest, Rushik Sama!`,
+        description: `${newCount * 5} gold lost for overtime. Complete your quest, ${playerName}!`,
         variant: "destructive",
       });
     }
@@ -174,7 +176,7 @@ export default function QuestTimer() {
     if (typeof selectedTaskId === "number") {
       completeMutation.mutate(selectedTaskId);
     }
-    toast({ title: "✓ QUEST COMPLETE", description: `Well done, Rushik Sama!` });
+    toast({ title: "✓ QUEST COMPLETE", description: `Well done, ${playerName}!` });
   };
 
   const handleAbandon = () => {
@@ -621,7 +623,7 @@ export default function QuestTimer() {
           >
             <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "rgba(134,239,172,0.7)" }} />
             <p style={{ color: "rgba(134,239,172,0.75)", fontSize: "0.78rem", lineHeight: 1.55 }}>
-              Quest rewards have been applied to your account. Keep conquering, Rushik Sama!
+              Quest rewards have been applied to your account. Keep conquering, {playerName}!
             </p>
           </div>
         )}

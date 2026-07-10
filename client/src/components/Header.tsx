@@ -1,6 +1,6 @@
 import { useUserStats } from "@/hooks/use-gamification";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2 } from "lucide-react";
+import { Loader as Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { getRank, xpForLevel } from "@shared/levels";
 import { xpBarTransition } from "@/lib/animations";
@@ -76,7 +76,7 @@ export function Header() {
               className="text-sm font-semibold truncate"
               style={{ color: "rgba(199,210,254,0.9)", fontFamily: "var(--font-display)" }}
             >
-              {user?.firstName ? `${user.firstName} Sama` : "Rushik Sama"}
+              {user?.firstName ? `${user.firstName} Sama` : "Hunter"}
             </span>
             <span
               className="hidden md:inline-block hud-label"

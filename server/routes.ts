@@ -11,6 +11,7 @@ import { ACHIEVEMENTS } from "@shared/achievements";
 import { applyXp, getRank, xpForLevel } from "@shared/levels";
 import { insertPhysiqueEntrySchema } from "@shared/schema";
 import Groq from "groq-sdk";
+import OpenAI from "openai";
 import crypto from "crypto";
 
 // === OWNER-ONLY (private features) ===
@@ -36,6 +37,10 @@ function verifyPassword(password: string, stored: string): boolean {
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
+});
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 export async function registerRoutes(
@@ -1279,6 +1284,55 @@ IMPORTANT: Return ONLY the JSON object, no other text.`,
     } catch (err: any) {
       console.error("Meal analysis error:", err?.message ?? err);
       res.status(500).json({ message: "Analysis failed. Please try again." });
+    }
+  });
+
+  // Food photo analysis via OpenAI Vision
+  app.post("/api/ai/meals/analyze-photo", requireAuth, async (req: any, res) => {
+    try {
+      const { imageBase64, mimeType = "image/jpeg" } = req.body;
+      if (!imageBase64) return res.status(400).json({ message: "imageBase64 required" });
+
+      const dataUrl = `data:${mimeType};base64,${imageBase64}`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        max_tokens: 600,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: { url: dataUrl, detail: "high" },
+              },
+              {
+                type: "text",
+                text: `You are an expert nutritionist analyzing a food photo. Identify all food items visible and estimate nutrition for the full serving shown.\n\nReturn ONLY a valid JSON object with these exact fields:\n- foodName (string): concise name of the dish/food\n- portionDescription (string): e.g. "1 medium plate" or "1 cup"\n- calories (integer): estimated kcal\n- protein (number): grams\n- carbs (number): grams\n- fat (number): grams\n- fiber (number): grams\n- confidence (string): "high", "medium", or "low"\n- analysis (string): 1-2 sentence nutritional insight\n\nReturn ONLY valid JSON, no markdown.`,
+              },
+            ],
+          },
+        ],
+      });
+
+      const raw = response.choices[0]?.message?.content || "{}";
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+      const result = JSON.parse(cleaned);
+
+      res.json({
+        foodName: result.foodName || "Unknown food",
+        portionDescription: result.portionDescription || "1 serving",
+        calories: typeof result.calories === "number" ? Math.round(result.calories) : 300,
+        protein: typeof result.protein === "number" ? Math.round(result.protein * 10) / 10 : null,
+        carbs: typeof result.carbs === "number" ? Math.round(result.carbs * 10) / 10 : null,
+        fat: typeof result.fat === "number" ? Math.round(result.fat * 10) / 10 : null,
+        fiber: typeof result.fiber === "number" ? Math.round(result.fiber * 10) / 10 : null,
+        confidence: ["high", "medium", "low"].includes(result.confidence) ? result.confidence : "medium",
+        analysis: result.analysis || "",
+      });
+    } catch (err: any) {
+      console.error("Photo analysis error:", err?.message ?? err);
+      res.status(500).json({ message: "Photo analysis failed. Please try again or enter manually." });
     }
   });
 

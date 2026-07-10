@@ -331,6 +331,9 @@ export const mealEntries = pgTable("meal_entries", {
   fat: real("fat"),           // grams
   fiber: real("fiber"),       // grams
   notes: text("notes"),
+  imageUrl: text("image_url"),
+  aiIdentified: boolean("ai_identified").default(false),
+  aiConfidence: text("ai_confidence"), // 'high' | 'medium' | 'low'
   loggedAt: timestamp("logged_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
