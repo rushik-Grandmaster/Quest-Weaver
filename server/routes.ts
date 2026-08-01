@@ -11,7 +11,6 @@ import { ACHIEVEMENTS } from "@shared/achievements";
 import { applyXp, getRank, xpForLevel } from "@shared/levels";
 import { insertPhysiqueEntrySchema } from "@shared/schema";
 import Groq from "groq-sdk";
-import OpenAI from "openai";
 import crypto from "crypto";
 
 // === OWNER-ONLY (private features) ===
@@ -39,9 +38,8 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Groq free-tier vision model (Llama 4 Scout — supports image input)
+const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -973,14 +971,14 @@ Return ONLY a valid JSON object with these fields:
 
 No markdown, no extra text. ONLY the JSON object.`;
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+      const response = await groq.chat.completions.create({
+        model: VISION_MODEL,
         max_tokens: 800,
         messages: [
           {
             role: "user",
             content: [
-              { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+              { type: "image_url", image_url: { url: dataUrl } },
               { type: "text", text: visionPrompt },
             ],
           },
@@ -1445,8 +1443,8 @@ IMPORTANT: Return ONLY the JSON object, no other text.`,
 
       const dataUrl = `data:${mimeType};base64,${imageBase64}`;
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+      const response = await groq.chat.completions.create({
+        model: VISION_MODEL,
         max_tokens: 600,
         messages: [
           {
@@ -1454,7 +1452,7 @@ IMPORTANT: Return ONLY the JSON object, no other text.`,
             content: [
               {
                 type: "image_url",
-                image_url: { url: dataUrl, detail: "high" },
+                image_url: { url: dataUrl },
               },
               {
                 type: "text",
