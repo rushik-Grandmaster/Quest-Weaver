@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Camera, Upload, Loader2, Scale, Ruler, Percent, Activity, Shield, Eye, ChevronDown, ChevronUp } from "lucide-react";
+import { Camera, Upload, Loader as Loader2, Scale, Ruler, Percent, Activity, Shield, Eye, ChevronDown, ChevronUp, CircleAlert as AlertCircle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -80,17 +80,33 @@ export default function BodyFatAnalysis() {
 
   const triggerUpload = () => fileInputRef.current?.click();
 
+  const [errorState, setErrorState] = useState<string | null>(null);
+
   const onSubmit = async (data: BodyFatFormData) => {
     setIsAnalyzing(true);
     setResult(null);
+    setErrorState(null);
     try {
       const res = await apiRequest("POST", "/api/ai/body-fat", data);
       const json = await res.json();
       setResult(json);
       toast({ title: "Scan Complete", description: `Estimated Body Fat: ${json.bodyFat}%` });
     } catch (err: any) {
-      const msg = err?.message || "Please try again with a clearer photo.";
-      toast({ title: "Analysis Failed", description: msg, variant: "destructive" });
+      let msg = "Something went wrong. Please try again.";
+      try {
+        const raw = err?.message || "";
+        const jsonStart = raw.indexOf("{");
+        if (jsonStart !== -1) {
+          const parsed = JSON.parse(raw.slice(jsonStart));
+          msg = parsed.message || msg;
+        } else {
+          msg = raw || msg;
+        }
+      } catch {
+        msg = err?.message || msg;
+      }
+      setErrorState(msg);
+      toast({ title: "Scan Failed", description: msg, variant: "destructive" });
     } finally {
       setIsAnalyzing(false);
     }
@@ -679,6 +695,32 @@ export default function BodyFatAnalysis() {
                   </motion.div>
                 ))}
               </div>
+            </motion.div>
+          ) : errorState ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="relative overflow-hidden flex flex-col items-center justify-center p-6"
+              style={{
+                background: "rgba(6,10,26,0.6)",
+                border: "1px solid rgba(239,68,68,0.3)",
+                borderRadius: "6px",
+                minHeight: "340px",
+              }}
+            >
+              <div className="absolute -top-px -left-px w-4 h-4 border-t-2 border-l-2" style={{ borderColor: "rgba(239,68,68,0.6)" }} />
+              <div className="absolute -bottom-px -right-px w-4 h-4 border-b-2 border-r-2" style={{ borderColor: "rgba(239,68,68,0.6)" }} />
+              <motion.div
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <AlertCircle className="w-12 h-12 mb-4" style={{ color: "rgba(239,68,68,0.7)" }} />
+              </motion.div>
+              <div className="hud-label text-center mb-3" style={{ color: "rgba(239,68,68,0.8)" }}>◈ SCAN FAILED</div>
+              <p className="text-sm text-center" style={{ color: "rgba(248,113,113,0.85)", fontFamily: "var(--font-mono)", lineHeight: 1.7, maxWidth: "280px" }}>
+                {errorState}
+              </p>
             </motion.div>
           ) : (
             <motion.div

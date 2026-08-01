@@ -925,10 +925,13 @@ Use this data to give highly personalized advice, celebrate progress, and help $
 
       const visionPrompt = `You are an expert fitness-assessment assistant estimating body fat percentage from a photo.
 
-FIRST: Determine if this image actually shows a human body (person standing, torso visible, etc).
-- If the image does NOT contain a human body (e.g. it's a landscape, object, animal, food, garbage bin, furniture, text, or anything else), return: {"validImage": false}
-- If it does show a human body, proceed with the analysis.
+STEP 1 — IMAGE CHECK:
+Look at the image carefully. Determine if it actually shows a HUMAN BODY (a person, standing or posing, with their torso/body visible).
+- If the image does NOT contain a human body, you MUST still describe what you see. Return:
+  {"validImage": false, "detectedObject": "<what the image actually shows, e.g. 'a garbage bin', 'a landscape', 'a dog', 'a plate of food'>", "rejectionReason": "<one sentence telling the user why this can't be analyzed>"}
+- If it DOES show a human body, proceed to step 2.
 
+STEP 2 — BODY FAT ESTIMATION:
 Use these VISUAL REFERENCE STANDARDS to estimate body fat:
 
 MEN:
@@ -956,20 +959,11 @@ INSTRUCTIONS:
 5. State confidence: low, medium, or high. Note photo-quality caveats.
 6. Include a 1-2 sentence analysis/insight.
 
-Return ONLY a valid JSON object with these fields:
-{
-  "validImage": true,
-  "sexAssumption": "male" | "female",
-  "bodyFat": <integer>,
-  "bodyFatRangeLow": <integer>,
-  "bodyFatRangeHigh": <integer>,
-  "confidence": "low" | "medium" | "high",
-  "cues": ["cue1", "cue2", "cue3"],
-  "analysis": "<1-2 sentence insight>",
-  "caveats": "<photo quality notes>"
-}
+Return ONLY a valid JSON object. No markdown, no code fences, no extra text. If the image is valid, use these fields:
+{"validImage": true, "sexAssumption": "male" or "female", "bodyFat": <integer>, "bodyFatRangeLow": <integer>, "bodyFatRangeHigh": <integer>, "confidence": "low" or "medium" or "high", "cues": ["cue1", "cue2", "cue3"], "analysis": "<1-2 sentence insight>", "caveats": "<photo quality notes>"}
 
-No markdown, no extra text. ONLY the JSON object.`;
+If the image is NOT a human body, use these fields:
+{"validImage": false, "detectedObject": "<what you see>", "rejectionReason": "<why it can't be analyzed>"}`;
 
       const response = await groq.chat.completions.create({
         model: VISION_MODEL,
@@ -989,10 +983,14 @@ No markdown, no extra text. ONLY the JSON object.`;
       const cleaned = rawContent.replace(/```json|```/g, "").trim();
       const result = JSON.parse(cleaned);
 
-      // Reject non-body images
+      // Reject non-body images — tell the user WHAT they uploaded
       if (result.validImage === false) {
+        const detected = result.detectedObject || "an unidentified object";
+        const reason = result.rejectionReason || "This image does not show a human body.";
         return res.status(400).json({
-          message: "This photo doesn't appear to show a human body. Please upload a clear full-body photo (front view, standing straight, minimal clothing) for an accurate scan.",
+          message: `This photo shows ${detected}, not a human body. ${reason} Please upload a clear full-body photo (front view, standing straight, minimal clothing) to get an accurate body fat scan.`,
+          detectedObject: detected,
+          rejectionReason: reason,
         });
       }
 
@@ -1046,7 +1044,35 @@ No markdown, no extra text. ONLY the JSON object.`;
       });
     } catch (err: any) {
       console.error("Body fat analysis error:", err?.message ?? err);
-      res.status(500).json({ message: "Analysis failed. Please try again with a clearer photo." });
+
+      // Distinguish error types so the user gets a useful message
+      const errMsg = err?.message || "";
+      const status = err?.status || err?.statusCode;
+
+      if (status === 429 || errMsg.includes("rate limit") || errMsg.includes("429")) {
+        return res.status(429).json({
+          message: "The AI scanner is busy right now. Please wait a few seconds and try again.",
+          errorType: "rate_limit",
+        });
+      }
+      if (errMsg.includes("model") || errMsg.includes("decommissioned") || errMsg.includes("not found")) {
+        return res.status(503).json({
+          message: "The AI vision model is temporarily unavailable. Please try again in a moment.",
+          errorType: "model_unavailable",
+        });
+      }
+      if (errMsg.includes("API key") || errMsg.includes("authentication") || errMsg.includes("401")) {
+        return res.status(503).json({
+          message: "The AI service is not configured. Please contact support.",
+          errorType: "auth_error",
+        });
+      }
+      // JSON parse or other unexpected error — show the real cause
+      return res.status(500).json({
+        message: `Scan failed: ${errMsg || "Unexpected error"}. This is usually a temporary issue — please try again. If it keeps happening, try a different photo (JPG or PNG, under 10MB).`,
+        errorType: "unknown",
+        detail: errMsg,
+      });
     }
   });
 
