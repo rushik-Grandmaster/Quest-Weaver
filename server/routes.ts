@@ -38,8 +38,8 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-// Groq free-tier vision model (Llama 4 Scout — supports image input)
-const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+// Groq free-tier vision model (Qwen 3.6 27B — supports image input)
+const VISION_MODEL = "qwen/qwen3.6-27b";
 
 export async function registerRoutes(
   httpServer: Server,
