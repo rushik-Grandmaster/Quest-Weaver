@@ -860,45 +860,195 @@ Use this data to give highly personalized advice, celebrate progress, and help $
     }
   });
 
+  // ── US Army body fat circumference method ─────────────────────────────────────
+  // Formulas from Army Regulation 600-9 / DoDI 1308.3
+  // All measurements in cm. Returns null if insufficient data.
+  function armyBodyFat(opts: {
+    gender: "male" | "female";
+    heightCm: number;
+    waistCm?: number;
+    neckCm?: number;
+    hipCm?: number;
+  }): number | null {
+    const { gender, heightCm, waistCm, neckCm, hipCm } = opts;
+    if (!waistCm || !neckCm || !heightCm) return null;
+    if (gender === "female" && !hipCm) return null;
+
+    if (gender === "male") {
+      const diff = waistCm - neckCm;
+      if (diff <= 0) return null;
+      // Metric Siri-style regression from AR 600-9
+      const bd = 1.0324 - 0.19077 * Math.log10(diff) + 0.15456 * Math.log10(heightCm);
+      if (bd <= 0) return null;
+      return Math.round((495 / bd - 450) * 10) / 10;
+    } else {
+      const sum = waistCm + (hipCm ?? 0) - neckCm;
+      if (sum <= 0) return null;
+      const bd = 1.29579 - 0.35004 * Math.log10(sum) + 0.22100 * Math.log10(heightCm);
+      if (bd <= 0) return null;
+      return Math.round((495 / bd - 450) * 10) / 10;
+    }
+  }
+
   app.post("/api/ai/body-fat", requireAuth, async (req: any, res) => {
     try {
-      const { image, height, weight } = req.body;
+      const {
+        image,
+        height,
+        weight,
+        gender,
+        waistCm,
+        neckCm,
+        hipCm,
+      } = req.body;
+
       if (!image || !height || !weight) {
         return res.status(400).json({ message: "Image, height, and weight are required" });
       }
 
-      const response = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
+      // ── Army circumference method (if measurements provided) ──
+      let armyResult: number | null = null;
+      if (gender && waistCm && neckCm) {
+        armyResult = armyBodyFat({
+          gender,
+          heightCm: parseFloat(height),
+          waistCm: parseFloat(waistCm),
+          neckCm: parseFloat(neckCm),
+          hipCm: hipCm ? parseFloat(hipCm) : undefined,
+        });
+      }
+
+      // ── Vision analysis via GPT-4o ──
+      // Extract base64 from data URL or use raw base64
+      let dataUrl = image;
+      if (!image.startsWith("data:image/")) {
+        dataUrl = `data:image/jpeg;base64,${image}`;
+      }
+
+      const visionPrompt = `You are an expert fitness-assessment assistant estimating body fat percentage from a photo.
+
+FIRST: Determine if this image actually shows a human body (person standing, torso visible, etc).
+- If the image does NOT contain a human body (e.g. it's a landscape, object, animal, food, garbage bin, furniture, text, or anything else), return: {"validImage": false}
+- If it does show a human body, proceed with the analysis.
+
+Use these VISUAL REFERENCE STANDARDS to estimate body fat:
+
+MEN:
+- 5%:  every muscle striated, paper-thin skin, extreme vascularity, gaunt face
+- 10%: six-pack visible at rest, vascularity in arms/shoulders, sharp jawline
+- 15%: abs visible when flexed, soft outline relaxed, V-taper torso ("beach lean")
+- 20%: no visible abs, slight soft layer over torso, face beginning to round
+- 25%: visible belly, love handles, waistline larger than chest
+- 30%: protruding abdomen, fat on chest/back/sides, rounder face
+- 35%+: obese distribution, fat across neck/back/limbs
+
+WOMEN:
+- 10%: shredded, full abdominal separation, striations, prominent vascularity
+- 15%: flat stomach, faint abdominal definition, lean limbs
+- 20%: slim/toned, soft curves, abdominal outline when flexed
+- 25%: average, soft midsection, fuller hips/thighs
+- 30%: fuller figure, fat on abdomen/hips/thighs/arms, rounder face
+- 35%+: substantial fat accumulation, round face
+
+INSTRUCTIONS:
+1. Determine the subject's apparent sex from the photo.
+2. Compare visible features (abdominal definition, vascularity, face fullness, limb leanness, torso shape) against the reference bands.
+3. Return a single integer estimate AND a range (e.g. 12, range 10-14).
+4. List 2-3 visual cues that drove your estimate.
+5. State confidence: low, medium, or high. Note photo-quality caveats.
+6. Include a 1-2 sentence analysis/insight.
+
+Return ONLY a valid JSON object with these fields:
+{
+  "validImage": true,
+  "sexAssumption": "male" | "female",
+  "bodyFat": <integer>,
+  "bodyFatRangeLow": <integer>,
+  "bodyFatRangeHigh": <integer>,
+  "confidence": "low" | "medium" | "high",
+  "cues": ["cue1", "cue2", "cue3"],
+  "analysis": "<1-2 sentence insight>",
+  "caveats": "<photo quality notes>"
+}
+
+No markdown, no extra text. ONLY the JSON object.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        max_tokens: 800,
         messages: [
           {
-            role: "system",
-            content: "You are a professional fitness and body composition expert. Based on the height and weight provided, estimate a realistic body fat percentage range. Return ONLY a JSON object with 'bodyFat' (number) and 'analysis' (string). No markdown, no extra text."
-          },
-          {
             role: "user",
-            content: `Height: ${height}cm, Weight: ${weight}kg. Estimate body fat percentage.`
-          }
+            content: [
+              { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+              { type: "text", text: visionPrompt },
+            ],
+          },
         ],
-        max_tokens: 256,
       });
 
-      const rawContent = response.choices[0].message.content || "{}";
+      const rawContent = response.choices[0]?.message?.content || "{}";
       const cleaned = rawContent.replace(/```json|```/g, "").trim();
       const result = JSON.parse(cleaned);
+
+      // Reject non-body images
+      if (result.validImage === false) {
+        return res.status(400).json({
+          message: "This photo doesn't appear to show a human body. Please upload a clear full-body photo (front view, standing straight, minimal clothing) for an accurate scan.",
+        });
+      }
+
+      // Sanitize
+      const visionEstimate = typeof result.bodyFat === "number" ? Math.round(result.bodyFat) : null;
+      const visionLow = typeof result.bodyFatRangeLow === "number" ? Math.round(result.bodyFatRangeLow) : null;
+      const visionHigh = typeof result.bodyFatRangeHigh === "number" ? Math.round(result.bodyFatRangeHigh) : null;
+      const confidence = ["low", "medium", "high"].includes(result.confidence) ? result.confidence : "medium";
+
+      // Choose final estimate: prefer Army method if available (more objective), else vision
+      const finalEstimate = armyResult ?? visionEstimate ?? 20;
+      const method = armyResult != null ? "army" : "vision";
+
+      // Build combined analysis text
+      let analysisText = result.analysis || "";
+      if (armyResult != null && visionEstimate != null) {
+        const diff = Math.abs(armyResult - visionEstimate);
+        analysisText += ` US Army circumference method estimates ${armyResult}%. `;
+        if (diff <= 4) {
+          analysisText += "Both methods closely agree, increasing confidence.";
+        } else {
+          analysisText += `The ${diff > 0 && armyResult > visionEstimate ? "Army" : "visual"} method suggests a higher estimate — measurements may differ from visual appearance due to lighting or muscle mass.`;
+        }
+      } else if (armyResult != null) {
+        analysisText = `US Army circumference method (AR 600-9) estimates ${armyResult}% body fat based on your measurements. This is a circumference-based calculation, not a visual estimate.`;
+      }
 
       const scan = await storage.saveBodyFatScan({
         userId: req.user.claims.sub,
         imageUrl: image,
         height: parseInt(height),
         weight: parseInt(weight),
-        estimatedBodyFat: result.bodyFat
+        estimatedBodyFat: finalEstimate,
       });
 
       const newAchievements = await checkAndAwardAchievements(req.user.claims.sub, { type: "body_fat_scan" });
-      res.json({ ...result, id: scan.id, newAchievements });
-    } catch (err) {
-      console.error("Body fat analysis error:", err);
-      res.status(500).json({ message: "Analysis failed" });
+
+      res.json({
+        bodyFat: finalEstimate,
+        method,
+        visionEstimate,
+        visionRange: visionLow != null && visionHigh != null ? `${visionLow}-${visionHigh}%` : null,
+        armyEstimate: armyResult,
+        sexAssumption: result.sexAssumption || null,
+        confidence,
+        cues: Array.isArray(result.cues) ? result.cues.slice(0, 4) : [],
+        analysis: analysisText,
+        caveats: result.caveats || null,
+        id: scan.id,
+        newAchievements,
+      });
+    } catch (err: any) {
+      console.error("Body fat analysis error:", err?.message ?? err);
+      res.status(500).json({ message: "Analysis failed. Please try again with a clearer photo." });
     }
   });
 

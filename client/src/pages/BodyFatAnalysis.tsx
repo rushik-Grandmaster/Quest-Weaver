@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Camera, Upload, Loader2, Scale, Ruler, Percent, Activity } from "lucide-react";
+import { Camera, Upload, Loader2, Scale, Ruler, Percent, Activity, Shield, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,11 +14,28 @@ const bodyFatSchema = z.object({
   height: z.coerce.number().min(50).max(300),
   weight: z.coerce.number().min(20).max(500),
   image: z.string().min(1, "Photo is required"),
+  gender: z.enum(["male", "female"]).optional(),
+  waistCm: z.coerce.number().min(30).max(300).optional(),
+  neckCm: z.coerce.number().min(15).max(100).optional(),
+  hipCm: z.coerce.number().min(30).max(200).optional(),
 });
 
 type BodyFatFormData = z.infer<typeof bodyFatSchema>;
 
-// Fixed particle positions
+type AnalysisResult = {
+  bodyFat: number;
+  method: "army" | "vision";
+  visionEstimate: number | null;
+  visionRange: string | null;
+  armyEstimate: number | null;
+  sexAssumption: string | null;
+  confidence: "low" | "medium" | "high";
+  cues: string[];
+  analysis: string;
+  caveats: string | null;
+  id: number;
+};
+
 const PARTICLES = [
   { left: "7%",  top: "15%", size: 2,   dur: 5.2, delay: 0    },
   { left: "88%", top: "10%", size: 1.5, dur: 4.8, delay: 1.0  },
@@ -28,10 +45,17 @@ const PARTICLES = [
   { left: "93%", top: "45%", size: 1.5, dur: 3.9, delay: 2.2  },
 ];
 
+const CONF_COLORS: Record<string, string> = {
+  high: "rgba(74,222,128,",
+  medium: "rgba(251,191,36,",
+  low: "rgba(239,68,68,",
+};
+
 export default function BodyFatAnalysis() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState<{ bodyFat: number; analysis: string } | null>(null);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [showArmyFields, setShowArmyFields] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<BodyFatFormData>({
@@ -63,9 +87,10 @@ export default function BodyFatAnalysis() {
       const res = await apiRequest("POST", "/api/ai/body-fat", data);
       const json = await res.json();
       setResult(json);
-      toast({ title: "Analysis Complete", description: `Estimated Body Fat: ${json.bodyFat}%` });
-    } catch {
-      toast({ title: "Analysis Failed", description: "Please try again with a clearer photo.", variant: "destructive" });
+      toast({ title: "Scan Complete", description: `Estimated Body Fat: ${json.bodyFat}%` });
+    } catch (err: any) {
+      const msg = err?.message || "Please try again with a clearer photo.";
+      toast({ title: "Analysis Failed", description: msg, variant: "destructive" });
     } finally {
       setIsAnalyzing(false);
     }
@@ -123,7 +148,7 @@ export default function BodyFatAnalysis() {
           AI Body Scan
         </h1>
         <p className="text-sm mt-1" style={{ color: "rgba(148,163,184,0.6)", fontFamily: "var(--font-mono)" }}>
-          Upload a clear full-body photo for an AI-powered composition analysis.
+          Upload a clear full-body photo for AI vision analysis. Optionally add circumference measurements for the US Army method.
         </p>
       </motion.div>
 
@@ -143,20 +168,17 @@ export default function BodyFatAnalysis() {
             backdropFilter: "blur(12px)",
           }}
         >
-          {/* Corner brackets */}
           <div className="absolute -top-px -left-px w-4 h-4 border-t-2 border-l-2" style={{ borderColor: "rgba(99,102,241,0.7)" }} />
           <div className="absolute -top-px -right-px w-4 h-4 border-t-2 border-r-2" style={{ borderColor: "rgba(99,102,241,0.7)" }} />
           <div className="absolute -bottom-px -left-px w-4 h-4 border-b-2 border-l-2" style={{ borderColor: "rgba(99,102,241,0.4)" }} />
           <div className="absolute -bottom-px -right-px w-4 h-4 border-b-2 border-r-2" style={{ borderColor: "rgba(99,102,241,0.4)" }} />
 
-          {/* Breathing glow */}
           <motion.div
             className="absolute inset-0 pointer-events-none"
             animate={{ boxShadow: ["inset 0 0 0px rgba(99,102,241,0)", "inset 0 0 30px rgba(99,102,241,0.06)", "inset 0 0 0px rgba(99,102,241,0)"] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
           />
 
-          {/* Animated scan line inside card */}
           <motion.div
             className="absolute left-0 right-0 h-px pointer-events-none"
             style={{ background: "linear-gradient(90deg, transparent, rgba(99,102,241,0.25), transparent)" }}
@@ -260,7 +282,6 @@ export default function BodyFatAnalysis() {
                       </>
                     ) : (
                       <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center gap-3">
-                        {/* Pulsing upload icon */}
                         <motion.div
                           animate={{ opacity: [0.5, 1, 0.5] }}
                           transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
@@ -271,7 +292,7 @@ export default function BodyFatAnalysis() {
                           <p className="text-sm font-medium mb-0.5" style={{ color: "rgba(165,180,252,0.9)", fontFamily: "var(--font-mono)" }}>
                             Upload or Capture
                           </p>
-                          <p className="text-xs" style={{ color: "rgba(100,116,139,0.7)" }}>Front view · standing straight</p>
+                          <p className="text-xs" style={{ color: "rgba(100,116,139,0.7)" }}>Front view · standing straight · minimal clothing</p>
                         </div>
                         <div className="flex gap-2">
                           <button
@@ -328,6 +349,116 @@ export default function BodyFatAnalysis() {
                   )}
                 </div>
 
+                {/* Army method toggle */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowArmyFields(v => !v)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs uppercase tracking-widest transition-all"
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      background: "rgba(99,102,241,0.06)",
+                      border: "1px solid rgba(99,102,241,0.2)",
+                      borderRadius: "3px",
+                      color: "rgba(165,180,252,0.8)",
+                    }}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Shield className="w-3 h-3" /> US ARMY METHOD (OPTIONAL)
+                    </span>
+                    {showArmyFields ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
+
+                  <AnimatePresence>
+                    {showArmyFields && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="space-y-4 pt-3">
+                          <p className="text-xs" style={{ color: "rgba(100,116,139,0.7)", fontFamily: "var(--font-mono)", lineHeight: 1.6 }}>
+                            Add circumference measurements to compute body fat using the US Army AR 600-9 formula. This is more objective than photo analysis alone.
+                          </p>
+                          <FormField
+                            control={form.control}
+                            name="gender"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="hud-label">GENDER</FormLabel>
+                                <FormControl>
+                                  <div className="flex gap-2">
+                                    {(["male", "female"] as const).map(g => (
+                                      <button
+                                        key={g}
+                                        type="button"
+                                        onClick={() => field.onChange(g)}
+                                        className="flex-1 py-2 text-xs uppercase tracking-widest transition-all"
+                                        style={{
+                                          fontFamily: "var(--font-mono)",
+                                          background: field.value === g ? "rgba(99,102,241,0.2)" : "rgba(15,23,42,0.6)",
+                                          border: `1px solid ${field.value === g ? "rgba(99,102,241,0.5)" : "rgba(99,102,241,0.2)"}`,
+                                          borderRadius: "3px",
+                                          color: field.value === g ? "rgba(165,180,252,0.95)" : "rgba(100,116,139,0.7)",
+                                        }}
+                                      >
+                                        {g}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <div className="grid grid-cols-2 gap-3">
+                            <FormField
+                              control={form.control}
+                              name="waistCm"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="hud-label">WAIST (cm)</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" placeholder="e.g. 85" {...field} className="font-mono" style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(99,102,241,0.25)", color: "rgba(199,210,254,0.95)" }} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="neckCm"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="hud-label">NECK (cm)</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" placeholder="e.g. 38" {...field} className="font-mono" style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(99,102,241,0.25)", color: "rgba(199,210,254,0.95)" }} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                          <FormField
+                            control={form.control}
+                            name="hipCm"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="hud-label">HIP (cm) — women only</FormLabel>
+                                <FormControl>
+                                  <Input type="number" placeholder="e.g. 95" {...field} className="font-mono" style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(99,102,241,0.25)", color: "rgba(199,210,254,0.95)" }} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
                 {/* Submit */}
                 <motion.button
                   type="submit"
@@ -379,22 +510,34 @@ export default function BodyFatAnalysis() {
               >
                 <div className="absolute -top-px -left-px w-4 h-4 border-t-2 border-l-2" style={{ borderColor: "rgba(129,140,248,0.9)" }} />
                 <div className="absolute -bottom-px -right-px w-4 h-4 border-b-2 border-r-2" style={{ borderColor: "rgba(129,140,248,0.6)" }} />
-
-                {/* Radial glow */}
                 <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at top right, rgba(99,102,241,0.1) 0%, transparent 60%)" }} />
-
-                {/* Big % watermark */}
                 <Percent className="absolute top-4 right-4 w-20 h-20 pointer-events-none" style={{ color: "rgba(99,102,241,0.07)" }} />
 
                 <div className="relative z-10 p-6">
-                  <div className="hud-label mb-3">◈ SCAN RESULT</div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="hud-label">◈ SCAN RESULT</div>
+                    <span
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        padding: "3px 8px", borderRadius: 3,
+                        background: `${CONF_COLORS[result.confidence]}0.1)`,
+                        border: `1px solid ${CONF_COLORS[result.confidence]}0.3)`,
+                        fontFamily: "var(--font-mono)", fontSize: 9,
+                        color: `${CONF_COLORS[result.confidence]}0.9)`,
+                        letterSpacing: "0.08em",
+                      }}
+                    >
+                      {result.confidence === "high" && <Eye className="w-2.5 h-2.5" />}
+                      ◆ {result.confidence.toUpperCase()} CONFIDENCE
+                    </span>
+                  </div>
 
                   {/* Big number */}
                   <motion.div
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: "spring", damping: 12 }}
-                    className="text-7xl font-black mb-4"
+                    className="text-7xl font-black mb-2"
                     style={{
                       fontFamily: "var(--font-mono)",
                       background: "linear-gradient(135deg, rgba(165,180,252,1), rgba(99,102,241,1))",
@@ -406,6 +549,70 @@ export default function BodyFatAnalysis() {
                     {result.bodyFat}%
                   </motion.div>
 
+                  {/* Method badge */}
+                  <div className="flex items-center gap-2 mb-4">
+                    <span
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        padding: "3px 8px", borderRadius: 3,
+                        background: result.method === "army" ? "rgba(74,222,128,0.08)" : "rgba(99,102,241,0.08)",
+                        border: `1px solid ${result.method === "army" ? "rgba(74,222,128,0.3)" : "rgba(99,102,241,0.3)"}`,
+                        fontFamily: "var(--font-mono)", fontSize: 9,
+                        color: result.method === "army" ? "rgba(134,239,172,0.85)" : "rgba(165,180,252,0.85)",
+                        letterSpacing: "0.08em",
+                      }}
+                    >
+                      {result.method === "army" ? <Shield className="w-2.5 h-2.5" /> : <Eye className="w-2.5 h-2.5" />}
+                      {result.method === "army" ? "US ARMY AR 600-9" : "AI VISION SCAN"}
+                    </span>
+                    {result.visionRange && (
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(148,163,184,0.6)" }}>
+                        Vision range: {result.visionRange}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Dual estimate comparison */}
+                  {result.armyEstimate != null && result.visionEstimate != null && (
+                    <div className="grid grid-cols-2 gap-2 mb-4">
+                      <div className="p-2.5 rounded" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(74,222,128,0.15)" }}>
+                        <div className="hud-label" style={{ fontSize: "0.4rem" }}>ARMY METHOD</div>
+                        <div className="text-lg font-bold" style={{ fontFamily: "var(--font-mono)", color: "rgba(134,239,172,0.9)" }}>
+                          {result.armyEstimate}%
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(99,102,241,0.15)" }}>
+                        <div className="hud-label" style={{ fontSize: "0.4rem" }}>VISION ESTIMATE</div>
+                        <div className="text-lg font-bold" style={{ fontFamily: "var(--font-mono)", color: "rgba(165,180,252,0.9)" }}>
+                          {result.visionEstimate}%
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Visual cues */}
+                  {result.cues.length > 0 && (
+                    <div className="mb-3">
+                      <div className="hud-label mb-2" style={{ fontSize: "0.45rem" }}>◇ VISUAL CUES DETECTED</div>
+                      <div className="space-y-1.5">
+                        {result.cues.map((cue, i) => (
+                          <motion.div
+                            key={i}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.1 * i }}
+                            className="flex items-start gap-2"
+                          >
+                            <span style={{ color: "rgba(99,102,241,0.6)", fontSize: 10, marginTop: 2 }}>▸</span>
+                            <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(199,210,254,0.7)", lineHeight: 1.6 }}>
+                              {cue}
+                            </span>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Analysis text */}
                   <div
                     className="p-4 rounded"
@@ -414,10 +621,21 @@ export default function BodyFatAnalysis() {
                       border: "1px solid rgba(99,102,241,0.15)",
                     }}
                   >
-                    <p className="text-sm leading-relaxed italic" style={{ color: "rgba(199,210,254,0.8)" }}>
-                      "{result.analysis}"
+                    <p className="text-sm leading-relaxed" style={{ color: "rgba(199,210,254,0.8)" }}>
+                      {result.analysis}
                     </p>
                   </div>
+
+                  {/* Caveats */}
+                  {result.caveats && (
+                    <p className="text-xs mt-3" style={{ color: "rgba(100,116,139,0.6)", fontFamily: "var(--font-mono)", lineHeight: 1.6 }}>
+                      ⚠ {result.caveats}
+                    </p>
+                  )}
+
+                  <p className="text-xs mt-2" style={{ color: "rgba(100,116,139,0.4)", fontFamily: "var(--font-mono)", lineHeight: 1.5 }}>
+                    This is an approximation, not a medical measurement. For clinical accuracy, consult a professional using DEXA or caliper methods.
+                  </p>
                 </div>
               </div>
 
@@ -430,8 +648,8 @@ export default function BodyFatAnalysis() {
                     color: "rgba(99,102,241,0.85)",
                   },
                   {
-                    label: "DIRECTIVE",
-                    value: "Keep Pushing",
+                    label: "SEX ASSUMPTION",
+                    value: result.sexAssumption ? result.sexAssumption.charAt(0).toUpperCase() + result.sexAssumption.slice(1) : "—",
                     color: "rgba(74,222,128,0.85)",
                   },
                 ].map((tile) => (
@@ -448,20 +666,14 @@ export default function BodyFatAnalysis() {
                     }}
                   >
                     <div className="absolute -top-px -left-px w-2 h-2 border-t border-l" style={{ borderColor: tile.color }} />
-
-                    {/* Breathing glow */}
                     <motion.div
                       className="absolute inset-0 pointer-events-none"
                       animate={{ opacity: [0, 0.05, 0] }}
                       transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                       style={{ background: `radial-gradient(ellipse at center, ${tile.color} 0%, transparent 70%)` }}
                     />
-
                     <div className="hud-label relative z-10">{tile.label}</div>
-                    <div
-                      className="text-xl font-bold mt-1 relative z-10"
-                      style={{ fontFamily: "var(--font-mono)", color: tile.color }}
-                    >
+                    <div className="text-xl font-bold mt-1 relative z-10" style={{ fontFamily: "var(--font-mono)", color: tile.color }}>
                       {tile.value}
                     </div>
                   </motion.div>
@@ -469,7 +681,6 @@ export default function BodyFatAnalysis() {
               </div>
             </motion.div>
           ) : (
-            /* Placeholder when no result */
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -484,7 +695,6 @@ export default function BodyFatAnalysis() {
             >
               <div className="absolute -top-px -left-px w-4 h-4 border-t-2 border-l-2" style={{ borderColor: "rgba(99,102,241,0.4)" }} />
               <div className="absolute -bottom-px -right-px w-4 h-4 border-b-2 border-r-2" style={{ borderColor: "rgba(99,102,241,0.4)" }} />
-
               <motion.div
                 animate={{ opacity: [0.25, 0.7, 0.25] }}
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
