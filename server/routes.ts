@@ -10,7 +10,7 @@ import { checkAndAwardAchievements } from "./checkAchievements";
 import { ACHIEVEMENTS } from "@shared/achievements";
 import { applyXp, getRank, xpForLevel } from "@shared/levels";
 import { insertPhysiqueEntrySchema } from "@shared/schema";
-import OpenAI from "openai";
+import Groq from "groq-sdk";
 import crypto from "crypto";
 
 // === OWNER-ONLY (private features) ===
@@ -34,20 +34,17 @@ function verifyPassword(password: string, stored: string): boolean {
   } catch { return false; }
 }
 
-// Lazy-init OpenAI client — avoids crashing the server on startup if the key
-// is injected at runtime by the platform (Replit AI Integrations).
-let _openai: OpenAI | null = null;
-function getOpenAI(): OpenAI {
-  if (!_openai) {
-    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY || "missing";
-    const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || undefined;
-    _openai = new OpenAI({ apiKey, baseURL });
+// Lazy-init Groq client — server won't crash on startup if GROQ_API_KEY is missing.
+let _groq: Groq | null = null;
+function getGroq(): Groq {
+  if (!_groq) {
+    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY || "missing" });
   }
-  return _openai;
+  return _groq;
 }
 
-// Vision-capable model via Replit AI Integrations (no separate key needed)
-const VISION_MODEL = "gpt-4o";
+const TEXT_MODEL = "llama-3.3-70b-versatile";
+const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -789,8 +786,8 @@ Use this data to give highly personalized advice, celebrate progress, and help $
         }
       ];
 
-      const completion = await getOpenAI().chat.completions.create({
-        model: "gpt-4o",
+      const completion = await getGroq().chat.completions.create({
+        model: TEXT_MODEL,
         messages: [
           {
             role: "system",
@@ -837,8 +834,8 @@ Use this data to give highly personalized advice, celebrate progress, and help $
           });
         }
 
-        const finalCompletion = await getOpenAI().chat.completions.create({
-          model: "gpt-4o",
+        const finalCompletion = await getGroq().chat.completions.create({
+          model: TEXT_MODEL,
           messages: [
             {
               role: "system",
@@ -973,7 +970,7 @@ Return ONLY a valid JSON object. No markdown, no code fences, no extra text. If 
 If the image is NOT a human body, use these fields:
 {"validImage": false, "detectedObject": "<what you see>", "rejectionReason": "<why it can't be analyzed>"}`;
 
-      const response = await getOpenAI().chat.completions.create({
+      const response = await getGroq().chat.completions.create({
         model: VISION_MODEL,
         max_tokens: 800,
         messages: [
@@ -1298,8 +1295,8 @@ If the image is NOT a human body, use these fields:
       const firstName = (req as any).user.claims.first_name;
       const name = firstName ? (firstName.charAt(0).toUpperCase() + firstName.slice(1)) : "the user";
 
-      const response = await getOpenAI().chat.completions.create({
-        model: "llama-3.3-70b-versatile",
+      const response = await getGroq().chat.completions.create({
+        model: TEXT_MODEL,
         messages: [
           {
             role: "system",
@@ -1423,8 +1420,8 @@ ${nutritionContext}
 Extract the most accurate nutrition values from the search results. If multiple values exist, use the most common/average for a standard restaurant serving.`
         : `You are Luminous, an elite nutrition intelligence system for ${name}'s LifeRPG. Estimate nutrition values for a standard serving. Consider typical ingredients and portions. Always return ONLY valid JSON — no markdown, no extra text.`;
 
-      const response = await getOpenAI().chat.completions.create({
-        model: "llama-3.3-70b-versatile",
+      const response = await getGroq().chat.completions.create({
+        model: TEXT_MODEL,
         messages: [
           { role: "system", content: systemPrompt },
           {
@@ -1469,7 +1466,7 @@ IMPORTANT: Return ONLY the JSON object, no other text.`,
     }
   });
 
-  // Food photo analysis via OpenAI Vision
+  // Food photo analysis via Groq Vision
   app.post("/api/ai/meals/analyze-photo", requireAuth, async (req: any, res) => {
     try {
       const { imageBase64, mimeType = "image/jpeg" } = req.body;
@@ -1477,7 +1474,7 @@ IMPORTANT: Return ONLY the JSON object, no other text.`,
 
       const dataUrl = `data:${mimeType};base64,${imageBase64}`;
 
-      const response = await getOpenAI().chat.completions.create({
+      const response = await getGroq().chat.completions.create({
         model: VISION_MODEL,
         max_tokens: 600,
         messages: [
