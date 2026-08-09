@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutDashboard, SquareCheck as CheckSquare, ShoppingBag, Calendar, LogOut, Backpack, BookMarked, Sparkles, Flame, Activity, Timer, Trophy, Shield, Swords, ShoppingCart, Lock, Grid3x3, Search, X, Chrome as HomeIcon, ChevronRight, ShieldOff, Monitor, CircleHelp as HelpCircle, Utensils } from "lucide-react";
+import { LayoutDashboard, SquareCheck as CheckSquare, ShoppingBag, Calendar, LogOut, Backpack, BookMarked, Sparkles, Flame, Activity, Timer, Trophy, Shield, Swords, ShoppingCart, Lock, Grid3x3, Search, X, Chrome as HomeIcon, ChevronRight, ShieldOff, Monitor, CircleHelp as HelpCircle, Utensils, Quote as QuoteIcon, User } from "lucide-react";
 import { useVaultStatus, useLockVault } from "@/components/VaultGate";
 import { useTutorial } from "@/components/Tutorial";
 
@@ -36,10 +36,12 @@ const ALL_ITEMS: NavItem[] = [
   { href: "/wishlist",    label: "Wishlist",    icon: ShoppingCart, group: "ECONOMY" },
   // MIND
   { href: "/diary",       label: "Diary",    icon: BookMarked, group: "MIND" },
+  { href: "/quotes",      label: "Quotes",   icon: QuoteIcon, group: "MIND" },
   { href: "/luminous",    label: "Luminous", icon: Sparkles,   group: "MIND" },
   // STATUS
   { href: "/achievements", label: "Achievements", icon: Trophy, group: "STATUS" },
   { href: "/ranks",        label: "Ranks",        icon: Shield, group: "STATUS" },
+  { href: "/profile",      label: "Profile",      icon: User, group: "STATUS" },
 ];
 
 const GROUP_ORDER: NavItem["group"][] = ["MAIN", "TRAINING", "BODY", "ECONOMY", "MIND", "STATUS"];

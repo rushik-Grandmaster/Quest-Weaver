@@ -35,6 +35,8 @@ import Ranks from "@/pages/Ranks";
 import Physique from "@/pages/Physique";
 import ScreenTime from "@/pages/ScreenTime";
 import Meals from "@/pages/Meals";
+import Quotes from "@/pages/Quotes";
+import Profile from "@/pages/Profile";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 
@@ -127,6 +129,8 @@ function Router() {
         <Route path="/screen-time" component={ScreenTime} />
         <Route path="/meals" component={Meals} />
         <Route path="/achievements" component={Achievements} />
+        <Route path="/quotes" component={Quotes} />
+        <Route path="/profile" component={Profile} />
         <Route path="/ranks" component={Ranks} />
         <Route path="/physique">
           <VaultGate sectionLabel="Physique Vault"><Physique /></VaultGate>
